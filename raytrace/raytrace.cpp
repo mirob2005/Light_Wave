@@ -42,9 +42,6 @@ float* fArray;
 float diff = 0;
 float midpt[3] = {0,0,0};
 bool gVerbose = false;
-//Shadows set on when true (default)
-//If false, using shadow maps
-bool gShadows = true;
 
 int sampleRate = 100;
 
@@ -72,11 +69,10 @@ void parseCommandLine( int argc, char **argv ){
 		{ "resolution", required_argument, NULL, 'r' },
 		{ "verbose", required_argument, NULL, 'v' },
 		{ "help", required_argument, NULL, 'h' },
-		{ "shadow", required_argument, NULL, 's' },
 		{ NULL, 0, NULL, 0 }
 	};
 
-	while( (ch = getopt_long(argc, argv, "i:r:svh", longopts, NULL)) != -1 ){
+	while( (ch = getopt_long(argc, argv, "i:r:vh", longopts, NULL)) != -1 ){
 		switch( ch ){
 			case 'i':
 				// input file
@@ -87,9 +83,6 @@ void parseCommandLine( int argc, char **argv ){
 				break;
 			case 'v':
 				gVerbose = true;
-				break;
-			case 's':
-				gShadows = false;
 				break;
 			case 'h':
 				usage( );
@@ -259,111 +252,22 @@ void lightObject( int currentPixel, float* point, float* normal, Pixel *cp, Pixe
 								gTheScene->lights()[1+9*j] - point[1], 
 								gTheScene->lights()[2+9*j] - point[2]};
 
-		if(!gShadows)
+		//Calculate Shadows with Shadow Maps
+		float lightpoint[3] = {point[0], -point[2], point[1]};
+
+		int column = int((lightpoint[0] + (W/2))/(W/(gResolution-1))+0.5);
+
+		int row = int(-(lightpoint[1] -(H/2))/(H/(gResolution-1))+0.5);
+
+		int lightSpacePixel = row*gResolution+column;
+
+		if(row >=0 && column >=0) 
 		{
+			float depth = gTheScene->lights()[1+9*j] - lightpoint[2];
 
-			float lightpoint[3] = {point[0], -point[2], point[1]};
-
-			int column = int((lightpoint[0] + (W/2))/(W/(gResolution-1))+0.5);
-
-			int row = int(-(lightpoint[1] -(H/2))/(H/(gResolution-1))+0.5);
-
-			int lightSpacePixel = row*gResolution+column;
-
-			if(row >=0 && column >=0) 
-			{
-				float depth = gTheScene->lights()[1+9*j] - lightpoint[2];
-
-				if(depth > dArray[lightSpacePixel] +0.5)
-					blocked = true;
-			}
-
+			if(depth > dArray[lightSpacePixel] +0.5)
+				blocked = true;
 		}
-
-		if(gShadows){
-			/*CALCULATE SHADOWS*/
-			/*i=i, eye = point, d = lightVector*/
-			if(!blocked){
-				/*SPHERES*/
-				for(int i = 0; i < gTheScene->numSpheres(); i++) {
-					//Avoid self-occulsion
-					if(object == 0 && i == num){
-						//pass
-					}
-					else {
-						if(intersectSphere(i, point, lightVector) > 0) blocked = true;
-					}
-				}
-			}
-			if(!blocked){
-				/*PLANES*/
-				for(int i = 0; i < gTheScene->numPlanes(); i++) {
-					//Avoid self-occulsion
-					if(object == 1 && i == num){
-						//pass
-					}
-					else {
-						//skipping, planes won't occlude other planes in scene
-						//if(intersectPlane(i, point, lightVector) > 1) blocked = true;
-					}
-				}
-			}
-			if(!blocked){
-				/*TRIANGLES*/
-				for(int i = 0; i < gTheScene->numTriangles(); i++) {
-					//Avoid self-occulsion
-					if(object == 2 && i == num){
-						//pass
-					}
-					else {
-						if(intersectTriangle(i, point, lightVector, false) != 0) blocked = true;
-					}
-				}
-			}
-			//Avoid self-occulsion
-			if(object != 3){
-				if(!blocked){
-					/*MESHES*/
-					if(gInputModel!=0){
-						//BOUNDING VOLUME TEST (SPHERE)
-						float BVcenter[3] = {midpt[0],midpt[1], midpt[2]};
-						float BVradius = (diff/2);
-
-						////A = dNorm DOT dNorm
-						float A =normalize3D(lightVector)[0]*normalize3D(lightVector)[0]+
-								 normalize3D(lightVector)[1]*normalize3D(lightVector)[1]+
-								 normalize3D(lightVector)[2]*normalize3D(lightVector)[2];
-
-						////B = 2(eye-center) DOT dNorm
-						float eyeMinusCenter[3] = {point[0]-BVcenter[0],point[1]-BVcenter[1],point[2]-BVcenter[2]};
-
-						float B = 2*(eyeMinusCenter[0]*(normalize3D(lightVector)[0])+
-									eyeMinusCenter[1]*(normalize3D(lightVector)[1])+
-									eyeMinusCenter[2]*(normalize3D(lightVector)[2]));
-
-						//C = (eye-center) DOT (eye-center) - radius^2
-						float C = (eyeMinusCenter[0]*eyeMinusCenter[0]+
-						eyeMinusCenter[1]*eyeMinusCenter[1]+
-						eyeMinusCenter[2]*eyeMinusCenter[2]) - (BVradius*BVradius);
-
-						//B^2 - 4AC
-						float Q = (B*B) - 4*(A*C);
-
-						if(Q >= 0){
-							for(unsigned int i = 0; i < gInputModel->faceCount( ); i++) {
-								if(object == 0) {
-									if(intersectTriangle(i, point, lightVector, true) > 0) blocked = true;
-								}
-								else{ 
-									if(intersectTriangle(i, point, lightVector, true) != 0) blocked = true;
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-		//else blocked = false;
 
 		if(!blocked){
 			//Calculate Attenuation: if parsed attenuation value = 0 then fatt = 1 ( 1/((mag(lightVector)+1))
@@ -455,39 +359,39 @@ void lightObject( int currentPixel, float* point, float* normal, Pixel *cp, Pixe
 		}
 	}
 	/*****************************************************************************************************/
-	// CALCULATE INDIRECT LIGHTING
+	// CALCULATE INDIRECT LIGHTING - Reflective Shadow Map Method
 	/*****************************************************************************************************/
-	int j = 0;
-	for(int i = 0; i < gResolution*gResolution; i=i+sampleRate)
-	{
-		float xmxp[3] = {point[0] - cArray[3*i+0], point[1] - cArray[3*i+1], point[2] - cArray[3*i+2]};
-		float xmxpMAG = sqrt(xmxp[0]*xmxp[0]+xmxp[1]*xmxp[1]+xmxp[2]*xmxp[2]);
+	//int j = 0;
+	//for(int i = 0; i < gResolution*gResolution; i=i+sampleRate)
+	//{
+	//	float xmxp[3] = {point[0] - cArray[3*i+0], point[1] - cArray[3*i+1], point[2] - cArray[3*i+2]};
+	//	float xmxpMAG = sqrt(xmxp[0]*xmxp[0]+xmxp[1]*xmxp[1]+xmxp[2]*xmxp[2]);
 
-		if(xmxpMAG < 0.5)
-		{
-			xmxpMAG = xmxpMAG + 0.5;
-		}
-		else if(xmxpMAG < 1.5)
-		{
-			xmxpMAG = xmxpMAG + 0.5/xmxpMAG;
-		}
-		float npDOTxmxp = nArray[3*i+0]*xmxp[0]/xmxpMAG + nArray[3*i+1]*xmxp[1]/xmxpMAG+ nArray[3*i+2]*xmxp[2]/xmxpMAG;
-
-
-		float xpmx[3] = {cArray[3*i+0] - point[0], cArray[3*i+1] - point[1], cArray[3*i+2] - point[2]};
-		float nDOTxpmx = normalizednormal[0]*xpmx[0]/xmxpMAG + normalizednormal[1]*xpmx[1]/xmxpMAG + normalizednormal[2]*xpmx[2]/xmxpMAG;
+	//	if(xmxpMAG < 0.5)
+	//	{
+	//		xmxpMAG = xmxpMAG + 0.5;
+	//	}
+	//	else if(xmxpMAG < 1.5)
+	//	{
+	//		xmxpMAG = xmxpMAG + 0.5/xmxpMAG;
+	//	}
+	//	float npDOTxmxp = nArray[3*i+0]*xmxp[0]/xmxpMAG + nArray[3*i+1]*xmxp[1]/xmxpMAG+ nArray[3*i+2]*xmxp[2]/xmxpMAG;
 
 
-		// Reduced the irradiance by a factor of 2. Broke it into 2 parts, 1 accounting for the color of the surface reflecting light and
-		// 1 accounting for the color of the surface the light is reflecting onto
-		irradianceR = irradianceR + (sampleRate/4)*(fArray[3*i+0]*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG) +
-			(sampleRate/4)*((diffuseColor[0])*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG);
-		irradianceG = irradianceG + (sampleRate/4)*(fArray[3*i+1]*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG) +
-			(sampleRate/4)*((diffuseColor[1])*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG);
-		irradianceB = irradianceB + (sampleRate/4)*(fArray[3*i+2]*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG) +
-			(sampleRate/4)*((diffuseColor[2])*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG);
-		
-	}
+	//	float xpmx[3] = {cArray[3*i+0] - point[0], cArray[3*i+1] - point[1], cArray[3*i+2] - point[2]};
+	//	float nDOTxpmx = normalizednormal[0]*xpmx[0]/xmxpMAG + normalizednormal[1]*xpmx[1]/xmxpMAG + normalizednormal[2]*xpmx[2]/xmxpMAG;
+
+
+	//	// Reduced the irradiance by a factor of 2. Broke it into 2 parts, 1 accounting for the color of the surface reflecting light and
+	//	// 1 accounting for the color of the surface the light is reflecting onto
+	//	irradianceR = irradianceR + (sampleRate/4)*(fArray[3*i+0]*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG) +
+	//		(sampleRate/4)*((diffuseColor[0])*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG);
+	//	irradianceG = irradianceG + (sampleRate/4)*(fArray[3*i+1]*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG) +
+	//		(sampleRate/4)*((diffuseColor[1])*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG);
+	//	irradianceB = irradianceB + (sampleRate/4)*(fArray[3*i+2]*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG) +
+	//		(sampleRate/4)*((diffuseColor[2])*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG);
+	//	
+	//}
 	/*****************************************************************************************************/
 
 	int totalLightR = (255*sumLightsR) + irradianceR;

@@ -25,9 +25,8 @@ All files must be in the same directory to be found.
 	* flux buffer (unknown use currently)
 
 Sample commandline(on Windows) :
-			raytrace.exe -v -s -i scene5_01.txt -r 250
+			raytrace.exe -v -i scene5_01.txt -r 250
 
 -r passes in the resolution (required)
 -v turns on text output such as display parsed data, etc. (optional)
--s turns on shadow maps instead of light vector intersection tests for shadows
 
