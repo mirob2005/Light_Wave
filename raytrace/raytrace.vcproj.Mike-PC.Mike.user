@@ -39,7 +39,7 @@
 			<DebugSettings
 				Command="$(TargetPath)"
 				WorkingDirectory=""
-				CommandArguments="-v -s -i scene5_01.txt -o scene5_01_color.ppm -d scene5_01_depth.ppm -r 250"
+				CommandArguments="-v -s -i scene5_01.txt -r 250"
 				Attach="false"
 				DebuggerType="3"
 				Remote="1"
