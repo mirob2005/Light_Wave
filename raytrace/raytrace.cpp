@@ -29,6 +29,9 @@ Image *coord_image;
 Image *flux_image;
 Image *indirect_image;
 
+Image *cam_normal_image;
+Image *cam_coord_image;
+
 Scene *gTheScene;
 string gProgramName;
 int gResolution;
@@ -38,6 +41,9 @@ float* dArray;
 float* nArray;
 float* cArray;
 float* fArray;
+
+float* cnArray;
+float* ccArray;
 
 float diff = 0;
 float midpt[3] = {0,0,0};
@@ -774,6 +780,15 @@ void depth_buffer() {
 	flux_image = new Image(gResolution,gResolution,black);
 	Pixel *fp = flux_image->pixels;
 
+
+	//SET UP CAMERA NORMAL IMAGE
+	cam_normal_image = new Image(gResolution,gResolution,black);
+	Pixel *cnp = cam_normal_image->pixels;
+
+	//SET UP CAMERA WORLD SPACE COORDINATE IMAGE
+	cam_coord_image = new Image(gResolution,gResolution,black);
+	Pixel *cwp = cam_coord_image->pixels;
+
 	float W = 5;
 	float H = 5;
 	float resX = gResolution;
@@ -805,6 +820,28 @@ void depth_buffer() {
 		fArray[i*3+2] = 0;
 	}
 
+	cnArray = new float[3*gResolution*gResolution];
+	for(int i = 0; i < gResolution*gResolution; i++) {
+		nArray[i*3+0] = 0;
+		nArray[i*3+1] = 0;
+		nArray[i*3+2] = 0;
+	}
+
+	ccArray = new float[3*gResolution*gResolution];
+	for(int i = 0; i < gResolution*gResolution; i++) {
+		cArray[i*3+0] = 0;
+		cArray[i*3+1] = 0;
+		cArray[i*3+2] = 0;
+	}
+
+	// ONLY 1 LIGHT SUPPORT currently
+	int j = 0;
+	float eye[3] = {0,0,0};
+	eye[0] = gTheScene->lights()[0+9*j];
+	eye[1] = gTheScene->lights()[1+9*j];
+	eye[2] = gTheScene->lights()[2+9*j];
+
+
 	int currentPixel = 0;
 	while(currentPixel<resX*resY){
 
@@ -815,19 +852,11 @@ void depth_buffer() {
 		coordZ = -coordY;
 		coordY = 0;
 
-		float eye[3] = {0,0,0};
-		float d[3] = {0,0,0};
-
-		// ONLY 1 LIGHT SUPPORT
-		int j = 0;
-
 		//Perspective Camera OR Simple Perspective FROM LIGHT POSITION
-		eye[0] = gTheScene->lights()[0+9*j];
-		eye[1] = gTheScene->lights()[1+9*j];
-		eye[2] = gTheScene->lights()[2+9*j];
-		d[0] = coordX - gTheScene->lights()[0+9*j];
-		d[1] = coordY - gTheScene->lights()[1+9*j];
-		d[2] = coordZ - gTheScene->lights()[2+9*j];
+		float d[3] = {0,0,0};
+		d[0] = coordX - eye[0];
+		d[1] = coordY - eye[1];
+		d[2] = coordZ - eye[2];
 
 		//SPHERES
 		for(int i = 0; i < gTheScene->numSpheres(); i++) {
@@ -838,9 +867,9 @@ void depth_buffer() {
 				float point[3] = {0,0,0};
 
 				//Perspective Camera OR Simple Perspective Camera
-				point[0] = gTheScene->lights()[0+9*j] + tMinus*(normalize3D(d)[0]);
-				point[1] = gTheScene->lights()[1+9*j] + tMinus*(normalize3D(d)[1]);
-				point[2] = gTheScene->lights()[2+9*j] + tMinus*(normalize3D(d)[2]);
+				point[0] = eye[0] + tMinus*(normalize3D(d)[0]);
+				point[1] = eye[1] + tMinus*(normalize3D(d)[1]);
+				point[2] = eye[2] + tMinus*(normalize3D(d)[2]);
 				
 				float center[3] = {gTheScene->allSpheres()[1+5*i],gTheScene->allSpheres()[2+5*i],gTheScene->allSpheres()[3+5*i]};
 				float normal[3] = {point[0] - center[0], point[1] - center[1], point[2] - center[2]};
@@ -873,9 +902,9 @@ void depth_buffer() {
 				gTheScene->allPlanes()[3+5*i]};
 
 				//Perspective Camera OR Simple Perspective Camera
-				point[0] = gTheScene->lights()[0+9*j] + t*(normalize3D(d)[0]);
-				point[1] = gTheScene->lights()[1+9*j] + t*(normalize3D(d)[1]);
-				point[2] = gTheScene->lights()[2+9*j] + t*(normalize3D(d)[2]);
+				point[0] = eye[0] + t*(normalize3D(d)[0]);
+				point[1] = eye[1] + t*(normalize3D(d)[1]);
+				point[2] = eye[2] + t*(normalize3D(d)[2]);
 
 				dArray[currentPixel] = t;
 				nArray[currentPixel*3+0] = normalize3D(normal)[0];
@@ -912,9 +941,9 @@ void depth_buffer() {
 					float normal[3] = {BMA[1]*CMA[2]-BMA[2]*CMA[1],-BMA[0]*CMA[2]+BMA[2]*CMA[0],BMA[0]*CMA[1]-BMA[1]*CMA[0]};
 
 					//Perspective Camera OR Simple Perspective Camera
-					point[0] = gTheScene->lights()[0+9*j] + t*(normalize3D(d)[0]);
-					point[1] = gTheScene->lights()[1+9*j] + t*(normalize3D(d)[1]);
-					point[2] = gTheScene->lights()[2+9*j] + t*(normalize3D(d)[2]);
+					point[0] = eye[0] + t*(normalize3D(d)[0]);
+					point[1] = eye[1] + t*(normalize3D(d)[1]);
+					point[2] = eye[2] + t*(normalize3D(d)[2]);
 
 					dArray[currentPixel] = t;
 					nArray[currentPixel*3+0] = normalize3D(normal)[0];
@@ -972,9 +1001,9 @@ void depth_buffer() {
 							float normal[3] = {gInputModel->faceNormals[i][0],gInputModel->faceNormals[i][1],gInputModel->faceNormals[i][2]};
 
 							//Perspective Camera OR Simple Perspective Camera
-							point[0] = gTheScene->lights()[0+9*j] + t*(normalize3D(d)[0]);
-							point[1] = gTheScene->lights()[1+9*j] + t*(normalize3D(d)[1]);
-							point[2] = gTheScene->lights()[2+9*j] + t*(normalize3D(d)[2]);
+							point[0] = eye[0] + t*(normalize3D(d)[0]);
+							point[1] = eye[1] + t*(normalize3D(d)[1]);
+							point[2] = eye[2] + t*(normalize3D(d)[2]);
 
 
 							dArray[currentPixel] = t;
@@ -1071,11 +1100,35 @@ void depth_buffer() {
 		currentPixel++;
 	}
 
+
+	//CAMERA NORMAL MAP CREATION
+	currentPixel = 0;
+	while(currentPixel<resX*resY){
+		float normal[3] = {cnArray[3*currentPixel+0],cnArray[3*currentPixel+1],cnArray[3*currentPixel+2]};
+		*cnp = Pixel(abs((normal[0])*255),
+					abs((normal[1])*255),
+					abs((normal[2])*255));	
+		
+		*cnp++;
+		currentPixel++;
+	}
+
+	//CAMERA WORLD SPACE COORDINATE MAP CREATION		
+	currentPixel = 0;
+	while(currentPixel<resX*resY){
+		float point[3] = {ccArray[3*currentPixel+0],ccArray[3*currentPixel+1],ccArray[3*currentPixel+2]};
+		*cwp = Pixel(abs((normalize3D(point)[0])*255),
+					abs((normalize3D(point)[1])*255),
+					abs((normalize3D(point)[2])*255));	
+		
+		*cwp++;
+		currentPixel++;
+	}
+
 }
 
 int main( int argc, char **argv ){
-	time_t start,end;
-	time (&start);
+	int time = clock();
 	string pathStr;
 	gProgramName = argv[0];
 	gInputModel = NULL;
@@ -1090,22 +1143,26 @@ int main( int argc, char **argv ){
 		gTheScene->parse( );	
 
 		//OUTPUT THE PARSED DATA
-		if(gVerbose) cout << *gTheScene << endl;
+		//if(gVerbose) cout << *gTheScene << endl;
 
 		//Access Camera Type
-		if(gVerbose) cout << "Cam Type " << gTheScene->camType() << endl;
+		//if(gVerbose) cout << "Cam Type " << gTheScene->camType() << endl;
 
 		//Convert String to const char
 		string temp1 = gTheScene->inputSceneFile();
 		string temp2 = gTheScene->inputSceneFile();
 		string temp3 = gTheScene->inputSceneFile();
 		string temp4 = gTheScene->inputSceneFile();
+		string temp5 = gTheScene->inputSceneFile();
+		string temp6 = gTheScene->inputSceneFile();
 		const char * color_out = gTheScene->outputFile().c_str();
 		const char * depth_out = gTheScene->depthFile().c_str();
 		const char * normal_out =temp1.replace(9,4,"").append("_normal_map.ppm").c_str();
 		const char * coord_out = temp2.replace(9,4,"").append("_world_coord_map.ppm").c_str();
 		const char * flux_out = temp3.replace(9,4,"").append("_flux_buffer.ppm").c_str();
 		const char * indirect_out = temp4.replace(9,4,"").append("_indirect_only.ppm").c_str();
+		const char * cam_normal_out = temp5.replace(9,4,"").append("_cam_normal_map.ppm").c_str();
+		const char * cam_coord_out = temp6.replace(9,4,"").append("_cam_coord_map.ppm").c_str();
 		
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1142,6 +1199,19 @@ int main( int argc, char **argv ){
 		else {
 			if(gVerbose) cout << "Flux Buffer Creation Failed!" << endl;
 		}
+		if(cam_normal_image->write(cam_normal_out)){
+			if(gVerbose) cout << "Camera Normal Image Created Succuessfully!" << endl;
+		}
+		else {
+			if(gVerbose) cout << "Camera Normal Image Creation Failed!" << endl;
+		}
+		if(cam_coord_image->write(cam_coord_out)){
+			if(gVerbose) cout << "Camera World Space Coordinate Image Created Succuessfully!" << endl;
+		}
+		else {
+			if(gVerbose) cout << "Camera World Space Coordinate Image Creation Failed!" << endl;
+		}
+
 		if(color_image->write(color_out)){
 			if(gVerbose) cout << "Color Image Created Succuessfully!" << endl;
 		}
@@ -1158,9 +1228,9 @@ int main( int argc, char **argv ){
 	else{
 		usage( "You specify an input scene file, an output file and a depth file." );
 	}
-	time (&end);
-	double dif = difftime (end,start);
-	if(gVerbose) cout << "Time = " << dif << endl;
+
+	int newtime = clock();
+	if(gVerbose) printf ("It took %d clicks.\n",newtime-time);
 	if(gVerbose) cout << "REACHED END" << endl;
 	cin.get();
 	return( 0 );
