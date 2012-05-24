@@ -44,6 +44,7 @@ float* fArray;
 
 float* cnArray;
 float* ccArray;
+int gNumDLights = 6485;
 
 float diff = 0;
 float midpt[3] = {0,0,0};
@@ -276,7 +277,7 @@ void lightObject( int currentPixel, float* point, float* normal, Pixel *cp, Pixe
 		}
 
 		if(!blocked){
-			//Calculate Attenuation: if parsed attenuation value = 0 then fatt = 1 ( 1/((mag(lightVector)+1))
+			//Calculate Attenuation: if parsed attenuation value = 0 then fatt = 1 ( 1/(att* (mag(lightVector)+1))
 			float fatt[3] = {1/(gTheScene->lights()[6+9*j]*sqrt( (lightVector[0]*lightVector[0])+
 							(lightVector[1]*lightVector[1])+(lightVector[2]*lightVector[2]) )+1),
 							1/(gTheScene->lights()[7+9*j]*sqrt( (lightVector[0]*lightVector[0])+
@@ -782,7 +783,7 @@ void depth_buffer() {
 
 
 	//SET UP CAMERA NORMAL IMAGE
-	cam_normal_image = new Image(gResolution,gResolution,black);
+	cam_normal_image = new Image(3*5,gNumDLights/5,black);
 	Pixel *cnp = cam_normal_image->pixels;
 
 	//SET UP CAMERA WORLD SPACE COORDINATE IMAGE
@@ -820,18 +821,11 @@ void depth_buffer() {
 		fArray[i*3+2] = 0;
 	}
 
-	cnArray = new float[3*gResolution*gResolution];
-	for(int i = 0; i < gResolution*gResolution; i++) {
-		nArray[i*3+0] = 0;
-		nArray[i*3+1] = 0;
-		nArray[i*3+2] = 0;
-	}
-
 	ccArray = new float[3*gResolution*gResolution];
 	for(int i = 0; i < gResolution*gResolution; i++) {
-		cArray[i*3+0] = 0;
-		cArray[i*3+1] = 0;
-		cArray[i*3+2] = 0;
+		ccArray[i*3+0] = 0;
+		ccArray[i*3+1] = 0;
+		ccArray[i*3+2] = 0;
 	}
 
 	// ONLY 1 LIGHT SUPPORT currently
@@ -840,7 +834,6 @@ void depth_buffer() {
 	eye[0] = gTheScene->lights()[0+9*j];
 	eye[1] = gTheScene->lights()[1+9*j];
 	eye[2] = gTheScene->lights()[2+9*j];
-
 
 	int currentPixel = 0;
 	while(currentPixel<resX*resY){
@@ -1099,15 +1092,118 @@ void depth_buffer() {
 		*fp++;
 		currentPixel++;
 	}
+	/**************************************************************************************
+	* Creating Camera Buffer with center(3: x,y,z), normal(3: x,y,z), attenuation(1)
+	* 6485 Lights, 1297rays *5per ray
+	* 72 horizontal (360 degrees/5) * 18 vertical (90/5) + 1 (<0,-1,0> ray) = 1297 Directional Lights
+	* NOTE: DOES NOT INCLUDE PRIMARY DIRECTIONAL LIGHT (INDIRECT ONES ONLY)
+	**************************************************************************************/
+	//Support for 1 Light atm
+	j = 0;
+	cnArray = new float[7*gNumDLights];
+
+	// First Ray (<0,-1,0> ray
+	for(int i = 0; i <5; i++) {
+		// Cam Center in World Space = center + normal direction* max distance *1/5
+		cnArray[i*7+0] = gTheScene->lights()[0+9*j] + (gTheScene->dLight()[0+4*j])*max*((i+1.0)/5);
+		cnArray[i*7+1] = gTheScene->lights()[1+9*j] + (gTheScene->dLight()[1+4*j])*max*((i+1.0)/5);
+		cnArray[i*7+2] = gTheScene->lights()[2+9*j] + (gTheScene->dLight()[2+4*j])*max*((i+1.0)/5);
+		// Cam Normal
+		cnArray[i*7+3] = gTheScene->dLight()[0+4*j];
+		cnArray[i*7+4] = gTheScene->dLight()[1+4*j];
+		cnArray[i*7+5] = gTheScene->dLight()[2+4*j];
+		// Cam Attenuation - only attenuating all colors of light evenly 90%,70%,50%,30%,10%
+		cnArray[i*7+6] = (gTheScene->lights()[6+9*j])+ 0.1 +(0.2*i);
+	}
+	
+	int i = 5;
+
+	for(int angleXZ = 0; angleXZ <360; angleXZ = angleXZ +5) {
+		for(int angleXY = 275; angleXY <=360; angleXY = angleXY +5){
+			for(int counter = 0; counter <5; counter++) {
+				// Cam Center in World Space = center + normal direction* max distance *1/5
+				cnArray[i*7+0] = gTheScene->lights()[0+9*j] + cos(angleXY*3.1416/180)*cos(angleXZ*3.1416/180)*max*(((counter%5)+1.0)/5);
+				cnArray[i*7+1] = gTheScene->lights()[1+9*j] + sin(angleXY*3.1416/180)*max*(((counter%5)+1.0)/5);
+				cnArray[i*7+2] = gTheScene->lights()[2+9*j] - sin(angleXZ*3.1416/180)*max*(((counter%5)+1.0)/5);
+				// Cam Normal
+				cnArray[i*7+3] = cos(angleXZ*3.1416/180)*cos(angleXY*3.1416/180);
+				cnArray[i*7+4] = sin(angleXY*3.1416/180);
+				cnArray[i*7+5] = -sin(angleXZ*3.1416/180);
+				// Cam Attenuation - only attenuating all colors of light evenly 90%,70%,50%,30%,10%
+				cnArray[i*7+6] = (gTheScene->lights()[6+9*j])+ 0.1 +(0.2*(counter%5));
+				i++;
+			}
+		}
+	}
+
+
+
+
+	////0-85 DEGREES VERTICAL
+	//for(int angleXY = 270; angleXY <360; angleXY = angleXY +5){
+	//	for(int counter = 0; counter <5; counter++) {
+	//		// Cam Center in World Space = center + normal direction* max distance *1/5
+	//		cnArray[i*7+0] = gTheScene->lights()[0+9*j] + cos(angleXY*3.1416/180)*max*(((i%5)+1.0)/5);
+	//		cnArray[i*7+1] = gTheScene->lights()[1+9*j] + sin(angleXY*3.1416/180)*max*(((i%5)+1.0)/5);
+	//		cnArray[i*7+2] = gTheScene->lights()[2+9*j] + 0*max*(((i%5)+1.0)/5);
+	//		// Cam Normal
+	//		cnArray[i*7+3] = cos(angleXY*3.1416/180);
+	//		cnArray[i*7+4] = sin(angleXY*3.1416/180);
+	//		cnArray[i*7+5] = 0;
+	//		// Cam Attenuation - only attenuating all colors of light evenly 90%,70%,50%,30%,10%
+	//		cnArray[i*7+6] = (gTheScene->lights()[6+9*j])+ 0.1 +(0.2*(i%5));
+	//		i++;
+	//	}
+	//}
+
+	//// 0-355 degrees horizontal
+	//for(int angleXZ = 0; angleXZ <360; angleXZ = angleXZ +5) {
+	//	for(int counter = 0; counter <5; counter++) {
+	//		// Cam Center in World Space = center + normal direction* max distance *1/5
+	//		cnArray[i*7+0] = gTheScene->lights()[0+9*j] + cos(angleXZ*3.1416/180)*max*(((i%5)+1.0)/5);
+	//		cnArray[i*7+1] = gTheScene->lights()[1+9*j] + 0*max*(((i%5)+1.0)/5);
+	//		cnArray[i*7+2] = gTheScene->lights()[2+9*j] - sin(angleXZ*3.1416/180)*max*(((i%5)+1.0)/5);
+	//		// Cam Normal
+	//		cnArray[i*7+3] = cos(angleXZ*3.1416/180);
+	//		cnArray[i*7+4] = 0;
+	//		cnArray[i*7+5] = -sin(angleXZ*3.1416/180);
+	//		// Cam Attenuation - only attenuating all colors of light evenly 90%,70%,50%,30%,10%
+	//		cnArray[i*7+6] = (gTheScene->lights()[6+9*j])+ 0.1 +(0.2*(i%5));
+	//		i++;
+	//	}
+	//}
+
+	//for(int i = 4; i <7; i++) {
+	//	cout << cnArray[i*7+0] << endl;
+	//	cout << cnArray[i*7+1] << endl;
+	//	cout << cnArray[i*7+2] << endl<<endl;
+	//	cout << cnArray[i*7+3] << endl;
+	//	cout << cnArray[i*7+4] << endl;
+	//	cout << cnArray[i*7+5] << endl<<endl;
+	//	cout << cnArray[i*7+6] << endl << "*******" << endl;
+	//}
 
 
 	//CAMERA NORMAL MAP CREATION
 	currentPixel = 0;
-	while(currentPixel<resX*resY){
-		float normal[3] = {cnArray[3*currentPixel+0],cnArray[3*currentPixel+1],cnArray[3*currentPixel+2]};
+	while(currentPixel<gNumDLights){
+		float normal[3] = {cnArray[7*currentPixel+0],cnArray[7*currentPixel+1],cnArray[7*currentPixel+2]};
+		float point[3] = {cnArray[7*currentPixel+3],cnArray[7*currentPixel+4],cnArray[7*currentPixel+5]};
+		float att = cnArray[7*currentPixel+6];
 		*cnp = Pixel(abs((normal[0])*255),
 					abs((normal[1])*255),
 					abs((normal[2])*255));	
+		
+		*cnp++;
+		*cnp = Pixel(abs((normalize3D(point)[0])*255),
+					abs((normalize3D(point)[1])*255),
+					abs((normalize3D(point)[2])*255));		
+		
+		*cnp++;
+		if(att > 1.0) att = 1;
+		*cnp = Pixel(att*255,
+					att*255,
+					att*255);		
 		
 		*cnp++;
 		currentPixel++;
