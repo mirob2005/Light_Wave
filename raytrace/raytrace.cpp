@@ -253,8 +253,8 @@ void lightObject( int currentPixel, float* point, float* normal, Pixel *cp, Pixe
 	bool blocked = false;
 
 	float normalizednormal[3] = {normalize3D(normal)[0],normalize3D(normal)[1],normalize3D(normal)[2]};
-
-	for(int j = 0; j < gTheScene->numLights(); j++) {
+	int j =0;
+	//for(int j = 0; j < gTheScene->numLights(); j++) {
 		float lightVector[3] = {gTheScene->lights()[0+9*j]-point[0], 
 								gTheScene->lights()[1+9*j] - point[1], 
 								gTheScene->lights()[2+9*j] - point[2]};
@@ -364,10 +364,103 @@ void lightObject( int currentPixel, float* point, float* normal, Pixel *cp, Pixe
 			}
 			else exit(0);
 		}
+	//}
+	/*****************************************************************************************************/
+	// CALCULATE INDIRECT LIGHTING
+	/*****************************************************************************************************/
+	j = 0;
+	float dist = sqrt( (lightVector[0]*lightVector[0])+(lightVector[1]*lightVector[1])+(lightVector[2]*lightVector[2]) );
+	for(int i = 0; i < gNumDLights; i++)
+	{
+		//VECTOR FROM POINT TO DIRECTIONAL LIGHT
+		float DLmx[3] = {cnArray[7*i+0] - point[0], cnArray[7*i+1] - point[1], cnArray[7*i+2] - point[2]};
+		float DLmxMAG = sqrt(DLmx[0]*DLmx[0]+DLmx[1]*DLmx[1]+DLmx[2]*DLmx[2]);
+		float fatt = 1/(cnArray[7*i+6]*dist+1);
+		
+		float NdotL = normalizednormal[0]*DLmx[0]/DLmxMAG+
+							 normalizednormal[1]*DLmx[1]/DLmxMAG+
+							 normalizednormal[2]*DLmx[2]/DLmxMAG;
+
+		float direction[3] = {cnArray[7*i+3],cnArray[7*i+4],cnArray[7*i+5]};
+
+		//Check to see if the light direction is facing towards the object
+		if(NdotL < 0.0001){
+			//DO Nothing
+		}
+		else {
+			float angleRad = direction[0]*-(DLmx[0]/DLmxMAG)+
+							direction[1]*-(DLmx[1]/DLmxMAG)+
+							direction[2]*-(DLmx[2]/DLmxMAG);
+
+			//float reflectionVector[3] = {2*normalizednormal[0]*NdotL-DLmx[0]/DLmxMAG,
+			//							2*normalizednormal[1]*NdotL-DLmx[1]/DLmxMAG,
+			//							2*normalizednormal[2]*NdotL-DLmx[2]/DLmxMAG};
+			//float viewingVector[3] = {d[0], d[1], -d[2]};
+
+			//float RdotV =(normalize3D(reflectionVector)[0])*(normalize3D(viewingVector)[0])+
+			//					 (normalize3D(reflectionVector)[1])*(normalize3D(viewingVector)[1])+
+			//					 (normalize3D(reflectionVector)[2])*(normalize3D(viewingVector)[2]);
+
+			//DIFFUSE COLOR = fatt*DLight*(lightColor*NdotL*diffuseColor)
+			irradianceR = irradianceR +(fatt*angleRad* NdotL*diffuseColor[0]);
+			irradianceG = irradianceG +(fatt*angleRad* NdotL*diffuseColor[1]);
+			irradianceB = irradianceB +(fatt*angleRad* NdotL*diffuseColor[2]);
+			//irradianceR = irradianceR +(fatt*angleRad* (gTheScene->lights()[3+9*j]*NdotL*diffuseColor[0]) );
+			//irradianceG = irradianceG +(fatt*angleRad* (gTheScene->lights()[4+9*j]*NdotL*diffuseColor[1]) );
+			//irradianceB = irradianceB +(fatt*angleRad* (gTheScene->lights()[5+9*j]*NdotL*diffuseColor[2]) );
+			//if(RdotV < 0.00){
+			//	RdotV = 0;
+			//}
+			//SPECULAR COLOR = fatt*DLight*(lightColor*specularColor*(RdotV)^exponent)
+			//irradianceR = irradianceR +(fatt*angleRad* (gTheScene->lights()[3+9*j]*specularColor[0]*pow(RdotV,exponent)) );
+			//irradianceG = irradianceG +(fatt*angleRad* (gTheScene->lights()[4+9*j]*specularColor[1]*pow(RdotV,exponent)) );
+			//irradianceB = irradianceB +(fatt*angleRad* (gTheScene->lights()[5+9*j]*specularColor[2]*pow(RdotV,exponent)) );  
+		}
 	}
-	/*****************************************************************************************************/
-	// CALCULATE INDIRECT LIGHTING - Reflective Shadow Map Method
-	/*****************************************************************************************************/
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	//int j = 0;
+	//for(int i = 0; i < gNumDLights; i++)
+	//{
+	//	//VECTOR FROM DIRECTIONAL LIGHT TO POINT
+	//	float xmDL[3] = {point[0] - cnArray[7*i+0], point[1] - cnArray[7*i+1], point[2] - cnArray[7*i+2]};
+	//	float xmDLMAG = sqrt(xmDL[0]*xmDL[0]+xmDL[1]*xmDL[1]+xmDL[2]*xmDL[2]);
+
+	//	float fatt = 1/(cnArray[7*i+6]*xmDLMAG+1);
+
+	//	//if(xmxpMAG < 0.5)
+	//	//{
+	//	//	xmxpMAG = xmxpMAG + 0.5;
+	//	//}
+	//	//else if(xmxpMAG < 1.5)
+	//	//{
+	//	//	xmxpMAG = xmxpMAG + 0.5/xmxpMAG;
+	//	//}
+	//	float ndDOTxmDL = cnArray[7*i+3]*xmDL[0]/xmDLMAG + cnArray[7*i+4]*xmDL[1]/xmDLMAG+ cnArray[7*i+5]*xmDL[2]/xmDLMAG;
+
+
+	//	float DLmx[3] = {cnArray[7*i+0] - point[0], cnArray[7*i+1] - point[1], cnArray[7*i+2] - point[2]};
+	//	float nDOTDLmx = normalizednormal[0]*DLmx[0]/xmDLMAG + normalizednormal[1]*DLmx[1]/xmDLMAG + normalizednormal[2]*DLmx[2]/xmDLMAG;
+
+
+	//	// Reduced the irradiance by a factor of 2. Broke it into 2 parts, 1 accounting for the color of the surface reflecting light and
+	//	// 1 accounting for the color of the surface the light is reflecting onto
+	//	irradianceR = irradianceR + (fatt*diffuseColor[0]*max(0, ndDOTxmDL)* max(0, nDOTDLmx))/(xmDLMAG*xmDLMAG*xmDLMAG*xmDLMAG);
+	//	irradianceG = irradianceG + (fatt*diffuseColor[1]*max(0, ndDOTxmDL)* max(0, nDOTDLmx))/(xmDLMAG*xmDLMAG*xmDLMAG*xmDLMAG);
+	//	irradianceB = irradianceB + (fatt*diffuseColor[2]*max(0, ndDOTxmDL)* max(0, nDOTDLmx))/(xmDLMAG*xmDLMAG*xmDLMAG*xmDLMAG);
+	//	
+	//}	
+	
+	
+	
 	//int j = 0;
 	//for(int i = 0; i < gResolution*gResolution; i=i+sampleRate)
 	//{
@@ -1105,9 +1198,9 @@ void depth_buffer() {
 	// First Ray (<0,-1,0> ray
 	for(int i = 0; i <5; i++) {
 		// Cam Center in World Space = center + normal direction* max distance *1/5
-		cnArray[i*7+0] = gTheScene->lights()[0+9*j] + (gTheScene->dLight()[0+4*j])*max*((i+1.0)/5);
-		cnArray[i*7+1] = gTheScene->lights()[1+9*j] + (gTheScene->dLight()[1+4*j])*max*((i+1.0)/5);
-		cnArray[i*7+2] = gTheScene->lights()[2+9*j] + (gTheScene->dLight()[2+4*j])*max*((i+1.0)/5);
+		cnArray[i*7+0] = gTheScene->lights()[0+9*j] + (gTheScene->dLight()[0+4*j])*8.0*((i+1.0)/5);
+		cnArray[i*7+1] = gTheScene->lights()[1+9*j] + (gTheScene->dLight()[1+4*j])*8.0*((i+1.0)/5);
+		cnArray[i*7+2] = gTheScene->lights()[2+9*j] + (gTheScene->dLight()[2+4*j])*8.0*((i+1.0)/5);
 		// Cam Normal
 		cnArray[i*7+3] = gTheScene->dLight()[0+4*j];
 		cnArray[i*7+4] = gTheScene->dLight()[1+4*j];
@@ -1117,23 +1210,27 @@ void depth_buffer() {
 	}
 	
 	int i = 5;
+	int interpolate = 1;
 
 	for(int angleXZ = 0; angleXZ <360; angleXZ = angleXZ +5) {
 		for(int angleXY = 275; angleXY <=360; angleXY = angleXY +5){
 			for(int counter = 0; counter <5; counter++) {
 				// Cam Center in World Space = center + normal direction* max distance *1/5
-				cnArray[i*7+0] = gTheScene->lights()[0+9*j] + cos(angleXY*3.1416/180)*cos(angleXZ*3.1416/180)*max*(((counter%5)+1.0)/5);
-				cnArray[i*7+1] = gTheScene->lights()[1+9*j] + sin(angleXY*3.1416/180)*max*(((counter%5)+1.0)/5);
-				cnArray[i*7+2] = gTheScene->lights()[2+9*j] - sin(angleXZ*3.1416/180)*max*(((counter%5)+1.0)/5);
+				cnArray[i*7+0] = gTheScene->lights()[0+9*j] + cos(angleXY*3.1416/180)*cos(angleXZ*3.1416/180)*(8.0-(4.0/interpolate))*(((counter%5)+1.0)/5);
+				cnArray[i*7+1] = gTheScene->lights()[1+9*j] + sin(angleXY*3.1416/180)*(8.0-(4.0/interpolate))*(((counter%5)+1.0)/5);
+				cnArray[i*7+2] = gTheScene->lights()[2+9*j] - sin(angleXZ*3.1416/180)*(8.0-(4.0/interpolate))*(((counter%5)+1.0)/5);
 				// Cam Normal
-				cnArray[i*7+3] = cos(angleXZ*3.1416/180)*cos(angleXY*3.1416/180);
-				cnArray[i*7+4] = sin(angleXY*3.1416/180);
-				cnArray[i*7+5] = -sin(angleXZ*3.1416/180);
+				float normal[3] = {cos(angleXZ*3.1416/180)*cos(angleXY*3.1416/180),sin(angleXY*3.1416/180),-sin(angleXZ*3.1416/180)};
+				cnArray[i*7+3] = (normalize3D(normal)[0]);
+				cnArray[i*7+4] = (normalize3D(normal)[1]);
+				cnArray[i*7+5] = (normalize3D(normal)[2]);
 				// Cam Attenuation - only attenuating all colors of light evenly 90%,70%,50%,30%,10%
 				cnArray[i*7+6] = (gTheScene->lights()[6+9*j])+ 0.1 +(0.2*(counter%5));
 				i++;
 			}
+			interpolate++;
 		}
+		interpolate = 1;
 	}
 
 
@@ -1253,12 +1350,12 @@ int main( int argc, char **argv ){
 		string temp6 = gTheScene->inputSceneFile();
 		const char * color_out = gTheScene->outputFile().c_str();
 		const char * depth_out = gTheScene->depthFile().c_str();
-		const char * normal_out =temp1.replace(9,4,"").append("_normal_map.ppm").c_str();
-		const char * coord_out = temp2.replace(9,4,"").append("_world_coord_map.ppm").c_str();
-		const char * flux_out = temp3.replace(9,4,"").append("_flux_buffer.ppm").c_str();
-		const char * indirect_out = temp4.replace(9,4,"").append("_indirect_only.ppm").c_str();
-		const char * cam_normal_out = temp5.replace(9,4,"").append("_cam_normal_map.ppm").c_str();
-		const char * cam_coord_out = temp6.replace(9,4,"").append("_cam_coord_map.ppm").c_str();
+		const char * normal_out =temp1.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_normal_map.ppm").c_str();
+		const char * coord_out = temp2.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_world_coord_map.ppm").c_str();
+		const char * flux_out = temp3.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_flux_buffer.ppm").c_str();
+		const char * indirect_out = temp4.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_indirect_only.ppm").c_str();
+		const char * cam_normal_out = temp5.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_cam_normal_map.ppm").c_str();
+		const char * cam_coord_out = temp6.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_cam_coord_map.ppm").c_str();
 		
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
