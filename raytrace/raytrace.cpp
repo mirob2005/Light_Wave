@@ -247,263 +247,173 @@ void lightObject( int currentPixel, float* point, float* normal, Pixel *cp, Pixe
 	float sumLightsR = 0;
 	float sumLightsG = 0;
 	float sumLightsB = 0;
-	float irradianceR = 0;
-	float irradianceG = 0;
-	float irradianceB = 0;
+	float irradiance = 0;
+	float NdotL = 0;
 	bool blocked = false;
 
 	float normalizednormal[3] = {normalize3D(normal)[0],normalize3D(normal)[1],normalize3D(normal)[2]};
 	int j =0;
 	//for(int j = 0; j < gTheScene->numLights(); j++) {
-		float lightVector[3] = {gTheScene->lights()[0+9*j]-point[0], 
-								gTheScene->lights()[1+9*j] - point[1], 
-								gTheScene->lights()[2+9*j] - point[2]};
+	float lightVector[3] = {gTheScene->lights()[0+9*j]-point[0], 
+							gTheScene->lights()[1+9*j] - point[1], 
+							gTheScene->lights()[2+9*j] - point[2]};
 
-		//Calculate Shadows with Shadow Maps
-		float lightpoint[3] = {point[0], -point[2], point[1]};
+	//Calculate Shadows with Shadow Maps
+	float lightpoint[3] = {point[0], -point[2], point[1]};
 
-		int column = int((lightpoint[0] + (W/2))/(W/(gResolution-1))+0.5);
+	int column = int((lightpoint[0] + (W/2))/(W/(gResolution-1))+0.5);
 
-		int row = int(-(lightpoint[1] -(H/2))/(H/(gResolution-1))+0.5);
+	int row = int(-(lightpoint[1] -(H/2))/(H/(gResolution-1))+0.5);
 
-		int lightSpacePixel = row*gResolution+column;
+	int lightSpacePixel = row*gResolution+column;
 
-		if(row >=0 && column >=0) 
-		{
-			float depth = gTheScene->lights()[1+9*j] - lightpoint[2];
+	if(row >=0 && column >=0) 
+	{
+		float depth = gTheScene->lights()[1+9*j] - lightpoint[2];
 
-			if(depth > dArray[lightSpacePixel] +0.5)
-				blocked = true;
+		if(depth > dArray[lightSpacePixel] +0.5)
+			blocked = true;
+	}
+
+	if(!blocked){
+		//Calculate Attenuation: if parsed attenuation value = 0 then fatt = 1 ( 1/(att* (mag(lightVector)+1))
+		float fatt[3] = {1/(gTheScene->lights()[6+9*j]*sqrt( (lightVector[0]*lightVector[0])+
+						(lightVector[1]*lightVector[1])+(lightVector[2]*lightVector[2]) )+1),
+						1/(gTheScene->lights()[7+9*j]*sqrt( (lightVector[0]*lightVector[0])+
+						(lightVector[1]*lightVector[1])+(lightVector[2]*lightVector[2]) )+1),
+						1/(gTheScene->lights()[8+9*j]*sqrt( (lightVector[0]*lightVector[0])+
+						(lightVector[1]*lightVector[1])+(lightVector[2]*lightVector[2]) )+1)};
+		
+		NdotL =(normalize3D(normal)[0])*(normalize3D(lightVector)[0])+
+							 (normalize3D(normal)[1])*(normalize3D(lightVector)[1])+
+							 (normalize3D(normal)[2])*(normalize3D(lightVector)[2]);
+		if(NdotL < 0.0001){
+			NdotL = 0;
 		}
+		//Directional Lights
+		if(gTheScene->lightType()[j] == 0) {
+			float direction[3] = {gTheScene->dLight()[0+4*j],gTheScene->dLight()[1+4*j],gTheScene->dLight()[2+4*j]};
 
-		if(!blocked){
-			//Calculate Attenuation: if parsed attenuation value = 0 then fatt = 1 ( 1/(att* (mag(lightVector)+1))
-			float fatt[3] = {1/(gTheScene->lights()[6+9*j]*sqrt( (lightVector[0]*lightVector[0])+
-							(lightVector[1]*lightVector[1])+(lightVector[2]*lightVector[2]) )+1),
-							1/(gTheScene->lights()[7+9*j]*sqrt( (lightVector[0]*lightVector[0])+
-							(lightVector[1]*lightVector[1])+(lightVector[2]*lightVector[2]) )+1),
-							1/(gTheScene->lights()[8+9*j]*sqrt( (lightVector[0]*lightVector[0])+
-							(lightVector[1]*lightVector[1])+(lightVector[2]*lightVector[2]) )+1)};
-			
-			float NdotL =(normalize3D(normal)[0])*(normalize3D(lightVector)[0])+
-								 (normalize3D(normal)[1])*(normalize3D(lightVector)[1])+
-								 (normalize3D(normal)[2])*(normalize3D(lightVector)[2]);
-			if(NdotL < 0.0001){
-				NdotL = 0;
+			//Check to see if the light direction is facing towards the object
+			if(NdotL == 0){
+				//DO Nothing
 			}
-			//Directional Lights
-			if(gTheScene->lightType()[j] == 0) {
-				float direction[3] = {gTheScene->dLight()[0+4*j],gTheScene->dLight()[1+4*j],gTheScene->dLight()[2+4*j]};
+			else {
+				float angleRad = (normalize3D(direction)[0])*-(normalize3D(lightVector)[0])+
+											(normalize3D(direction)[1])*-(normalize3D(lightVector)[1])+
+											(normalize3D(direction)[2])*-(normalize3D(lightVector)[2]);
+				float angleDeg = (180*acos(angleRad))/3.1416;
 
-				//Check to see if the light direction is facing towards the object
-				if(NdotL == 0){
-					//DO Nothing
+				float maxHalfAngle = (gTheScene->dLight()[3+4*j])/2;
+
+				if(maxHalfAngle > angleDeg) {
+					//cout << "Light!" << endl;
+					float reflectionVector[3] = {2*(normalize3D(normal)[0])*NdotL-(normalize3D(lightVector)[0]),
+																 2*(normalize3D(normal)[1])*NdotL-(normalize3D(lightVector)[1]),
+																 2*(normalize3D(normal)[2])*NdotL-(normalize3D(lightVector)[2])};
+					float viewingVector[3] = {d[0], d[1], -d[2]};
+
+					float RdotV =(normalize3D(reflectionVector)[0])*(normalize3D(viewingVector)[0])+
+										 (normalize3D(reflectionVector)[1])*(normalize3D(viewingVector)[1])+
+										 (normalize3D(reflectionVector)[2])*(normalize3D(viewingVector)[2]);
+
+					//DIFFUSE COLOR = fatt*DLight*(lightColor*NdotL*diffuseColor)
+					sumLightsR = sumLightsR+(fatt[0]*angleRad* (gTheScene->lights()[3+9*j]*NdotL*diffuseColor[0]) );
+					sumLightsG = sumLightsG+(fatt[1]*angleRad* (gTheScene->lights()[4+9*j]*NdotL*diffuseColor[1]) );
+					sumLightsB = sumLightsB+(fatt[2]*angleRad* (gTheScene->lights()[5+9*j]*NdotL*diffuseColor[2]) );
+
+					if(RdotV < 0.00){
+						RdotV = 0;
+					}
+					//SPECULAR COLOR = fatt*DLight*(lightColor*specularColor*(RdotV)^exponent)
+					sumLightsR = sumLightsR+(fatt[0]*angleRad* (gTheScene->lights()[3+9*j]*specularColor[0]*pow(RdotV,exponent)) );
+					sumLightsG = sumLightsG+(fatt[1]*angleRad* (gTheScene->lights()[4+9*j]*specularColor[1]*pow(RdotV,exponent)) );
+					sumLightsB = sumLightsB+(fatt[2]*angleRad* (gTheScene->lights()[5+9*j]*specularColor[2]*pow(RdotV,exponent)) );  
 				}
 				else {
-					float angleRad = (normalize3D(direction)[0])*-(normalize3D(lightVector)[0])+
-												(normalize3D(direction)[1])*-(normalize3D(lightVector)[1])+
-												(normalize3D(direction)[2])*-(normalize3D(lightVector)[2]);
-					float angleDeg = (180*acos(angleRad))/3.1416;
-
-					float maxHalfAngle = (gTheScene->dLight()[3+4*j])/2;
-
-					if(maxHalfAngle > angleDeg) {
-						//cout << "Light!" << endl;
-						float reflectionVector[3] = {2*(normalize3D(normal)[0])*NdotL-(normalize3D(lightVector)[0]),
-																	 2*(normalize3D(normal)[1])*NdotL-(normalize3D(lightVector)[1]),
-																	 2*(normalize3D(normal)[2])*NdotL-(normalize3D(lightVector)[2])};
-						float viewingVector[3] = {d[0], d[1], -d[2]};
-
-						float RdotV =(normalize3D(reflectionVector)[0])*(normalize3D(viewingVector)[0])+
-											 (normalize3D(reflectionVector)[1])*(normalize3D(viewingVector)[1])+
-											 (normalize3D(reflectionVector)[2])*(normalize3D(viewingVector)[2]);
-
-						//DIFFUSE COLOR = fatt*DLight*(lightColor*NdotL*diffuseColor)
-						sumLightsR = sumLightsR+(fatt[0]*angleRad* (gTheScene->lights()[3+9*j]*NdotL*diffuseColor[0]) );
-						sumLightsG = sumLightsG+(fatt[1]*angleRad* (gTheScene->lights()[4+9*j]*NdotL*diffuseColor[1]) );
-						sumLightsB = sumLightsB+(fatt[2]*angleRad* (gTheScene->lights()[5+9*j]*NdotL*diffuseColor[2]) );
-
-						if(RdotV < 0.00){
-							RdotV = 0;
-						}
-						//SPECULAR COLOR = fatt*DLight*(lightColor*specularColor*(RdotV)^exponent)
-						sumLightsR = sumLightsR+(fatt[0]*angleRad* (gTheScene->lights()[3+9*j]*specularColor[0]*pow(RdotV,exponent)) );
-						sumLightsG = sumLightsG+(fatt[1]*angleRad* (gTheScene->lights()[4+9*j]*specularColor[1]*pow(RdotV,exponent)) );
-						sumLightsB = sumLightsB+(fatt[2]*angleRad* (gTheScene->lights()[5+9*j]*specularColor[2]*pow(RdotV,exponent)) );  
-					}
-					else {
-						//cout << "No Light" << endl;
-						//Beyond Directional Light Angle, no light visible here!
-					}
+					//cout << "No Light" << endl;
+					//Beyond Directional Light Angle, no light visible here!
 				}
 			}
-			//Point Lights
-			else if (gTheScene->lightType()[j] == 1) {
-
-				float reflectionVector[3] = {2*(normalize3D(normal)[0])*NdotL-(normalize3D(lightVector)[0]),
-										 2*(normalize3D(normal)[1])*NdotL-(normalize3D(lightVector)[1]),
-										 2*(normalize3D(normal)[2])*NdotL-(normalize3D(lightVector)[2])};
-				float viewingVector[3] = {d[0], d[1], -d[2]};
-
-				float RdotV =(normalize3D(reflectionVector)[0])*(normalize3D(viewingVector)[0])+
-									 (normalize3D(reflectionVector)[1])*(normalize3D(viewingVector)[1])+
-									 (normalize3D(reflectionVector)[2])*(normalize3D(viewingVector)[2]);
-
-				//DIFFUSE COLOR = fatt*lightColor*NdotL*diffuseColor
-				sumLightsR = sumLightsR+(fatt[0]*(gTheScene->lights()[3+9*j]*NdotL*diffuseColor[0]));
-				sumLightsG = sumLightsG+(fatt[1]*(gTheScene->lights()[4+9*j]*NdotL*diffuseColor[1]));
-				sumLightsB = sumLightsB+(fatt[2]*(gTheScene->lights()[5+9*j]*NdotL*diffuseColor[2]));
-
-				if(RdotV < 0.00){
-					RdotV = 0;
-				}
-				//SPECULAR COLOR = fatt*lightColor*specularColor*(RdotV)^exponent
-				sumLightsR = sumLightsR+(fatt[0]*(gTheScene->lights()[3+9*j]*specularColor[0]*pow(RdotV,exponent)));
-				sumLightsG = sumLightsG+(fatt[1]*(gTheScene->lights()[4+9*j]*specularColor[1]*pow(RdotV,exponent)));
-				sumLightsB = sumLightsB+(fatt[2]*(gTheScene->lights()[5+9*j]*specularColor[2]*pow(RdotV,exponent)));
-			}
-			else exit(0);
 		}
+		//Point Lights
+		else if (gTheScene->lightType()[j] == 1) {
+
+			float reflectionVector[3] = {2*(normalize3D(normal)[0])*NdotL-(normalize3D(lightVector)[0]),
+									 2*(normalize3D(normal)[1])*NdotL-(normalize3D(lightVector)[1]),
+									 2*(normalize3D(normal)[2])*NdotL-(normalize3D(lightVector)[2])};
+			float viewingVector[3] = {d[0], d[1], -d[2]};
+
+			float RdotV =(normalize3D(reflectionVector)[0])*(normalize3D(viewingVector)[0])+
+								 (normalize3D(reflectionVector)[1])*(normalize3D(viewingVector)[1])+
+								 (normalize3D(reflectionVector)[2])*(normalize3D(viewingVector)[2]);
+
+			//DIFFUSE COLOR = fatt*lightColor*NdotL*diffuseColor
+			sumLightsR = sumLightsR+(fatt[0]*(gTheScene->lights()[3+9*j]*NdotL*diffuseColor[0]));
+			sumLightsG = sumLightsG+(fatt[1]*(gTheScene->lights()[4+9*j]*NdotL*diffuseColor[1]));
+			sumLightsB = sumLightsB+(fatt[2]*(gTheScene->lights()[5+9*j]*NdotL*diffuseColor[2]));
+
+			if(RdotV < 0.00){
+				RdotV = 0;
+			}
+			//SPECULAR COLOR = fatt*lightColor*specularColor*(RdotV)^exponent
+			sumLightsR = sumLightsR+(fatt[0]*(gTheScene->lights()[3+9*j]*specularColor[0]*pow(RdotV,exponent)));
+			sumLightsG = sumLightsG+(fatt[1]*(gTheScene->lights()[4+9*j]*specularColor[1]*pow(RdotV,exponent)));
+			sumLightsB = sumLightsB+(fatt[2]*(gTheScene->lights()[5+9*j]*specularColor[2]*pow(RdotV,exponent)));
+		}
+		else exit(0);
+	}
 	//}
 	/*****************************************************************************************************/
 	// CALCULATE INDIRECT LIGHTING
 	/*****************************************************************************************************/
 	j = 0;
 	float dist = sqrt( (lightVector[0]*lightVector[0])+(lightVector[1]*lightVector[1])+(lightVector[2]*lightVector[2]) );
+
 	for(int i = 0; i < gNumDLights; i++)
+	//for(int i = 0; i < 6; i++)
 	{
 		//VECTOR FROM POINT TO DIRECTIONAL LIGHT
 		float DLmx[3] = {cnArray[7*i+0] - point[0], cnArray[7*i+1] - point[1], cnArray[7*i+2] - point[2]};
 		float DLmxMAG = sqrt(DLmx[0]*DLmx[0]+DLmx[1]*DLmx[1]+DLmx[2]*DLmx[2]);
-		float fatt = 1/(cnArray[7*i+6]*dist+1);
-		
-		float NdotL = normalizednormal[0]*DLmx[0]/DLmxMAG+
+				
+		float NdotDLmx = normalizednormal[0]*DLmx[0]/DLmxMAG+
 							 normalizednormal[1]*DLmx[1]/DLmxMAG+
 							 normalizednormal[2]*DLmx[2]/DLmxMAG;
 
 		float direction[3] = {cnArray[7*i+3],cnArray[7*i+4],cnArray[7*i+5]};
 
+		float LdotXmDL = (direction[0]*(-DLmx[0]/DLmxMAG)) + 
+						(direction[1]*(-DLmx[1]/DLmxMAG)) +
+						(direction[2]*(-DLmx[2]/DLmxMAG));
+
+
 		//Check to see if the light direction is facing towards the object
-		if(NdotL < 0.0001){
+		if(NdotDLmx < 0.00001 || LdotXmDL < 0.00001){
 			//DO Nothing
 		}
 		else {
-			float angleRad = direction[0]*-(DLmx[0]/DLmxMAG)+
-							direction[1]*-(DLmx[1]/DLmxMAG)+
-							direction[2]*-(DLmx[2]/DLmxMAG);
+			float fatt = 1/(cnArray[7*i+6]*dist+1);
 
-			//float reflectionVector[3] = {2*normalizednormal[0]*NdotL-DLmx[0]/DLmxMAG,
-			//							2*normalizednormal[1]*NdotL-DLmx[1]/DLmxMAG,
-			//							2*normalizednormal[2]*NdotL-DLmx[2]/DLmxMAG};
-			//float viewingVector[3] = {d[0], d[1], -d[2]};
+			//DIFFUSE COLOR = fatt*NdotL(for point then for DLight)
+			irradiance = irradiance +(fatt* NdotDLmx*LdotXmDL);
 
-			//float RdotV =(normalize3D(reflectionVector)[0])*(normalize3D(viewingVector)[0])+
-			//					 (normalize3D(reflectionVector)[1])*(normalize3D(viewingVector)[1])+
-			//					 (normalize3D(reflectionVector)[2])*(normalize3D(viewingVector)[2]);
-
-			//DIFFUSE COLOR = fatt*DLight*(lightColor*NdotL*diffuseColor)
-			irradianceR = irradianceR +(fatt*angleRad* NdotL*diffuseColor[0]);
-			irradianceG = irradianceG +(fatt*angleRad* NdotL*diffuseColor[1]);
-			irradianceB = irradianceB +(fatt*angleRad* NdotL*diffuseColor[2]);
-			//irradianceR = irradianceR +(fatt*angleRad* (gTheScene->lights()[3+9*j]*NdotL*diffuseColor[0]) );
-			//irradianceG = irradianceG +(fatt*angleRad* (gTheScene->lights()[4+9*j]*NdotL*diffuseColor[1]) );
-			//irradianceB = irradianceB +(fatt*angleRad* (gTheScene->lights()[5+9*j]*NdotL*diffuseColor[2]) );
-			//if(RdotV < 0.00){
-			//	RdotV = 0;
-			//}
-			//SPECULAR COLOR = fatt*DLight*(lightColor*specularColor*(RdotV)^exponent)
-			//irradianceR = irradianceR +(fatt*angleRad* (gTheScene->lights()[3+9*j]*specularColor[0]*pow(RdotV,exponent)) );
-			//irradianceG = irradianceG +(fatt*angleRad* (gTheScene->lights()[4+9*j]*specularColor[1]*pow(RdotV,exponent)) );
-			//irradianceB = irradianceB +(fatt*angleRad* (gTheScene->lights()[5+9*j]*specularColor[2]*pow(RdotV,exponent)) );  
 		}
 	}
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	//int j = 0;
-	//for(int i = 0; i < gNumDLights; i++)
-	//{
-	//	//VECTOR FROM DIRECTIONAL LIGHT TO POINT
-	//	float xmDL[3] = {point[0] - cnArray[7*i+0], point[1] - cnArray[7*i+1], point[2] - cnArray[7*i+2]};
-	//	float xmDLMAG = sqrt(xmDL[0]*xmDL[0]+xmDL[1]*xmDL[1]+xmDL[2]*xmDL[2]);
+/*****************************************************************************************************/
 
-	//	float fatt = 1/(cnArray[7*i+6]*xmDLMAG+1);
-
-	//	//if(xmxpMAG < 0.5)
-	//	//{
-	//	//	xmxpMAG = xmxpMAG + 0.5;
-	//	//}
-	//	//else if(xmxpMAG < 1.5)
-	//	//{
-	//	//	xmxpMAG = xmxpMAG + 0.5/xmxpMAG;
-	//	//}
-	//	float ndDOTxmDL = cnArray[7*i+3]*xmDL[0]/xmDLMAG + cnArray[7*i+4]*xmDL[1]/xmDLMAG+ cnArray[7*i+5]*xmDL[2]/xmDLMAG;
-
-
-	//	float DLmx[3] = {cnArray[7*i+0] - point[0], cnArray[7*i+1] - point[1], cnArray[7*i+2] - point[2]};
-	//	float nDOTDLmx = normalizednormal[0]*DLmx[0]/xmDLMAG + normalizednormal[1]*DLmx[1]/xmDLMAG + normalizednormal[2]*DLmx[2]/xmDLMAG;
-
-
-	//	// Reduced the irradiance by a factor of 2. Broke it into 2 parts, 1 accounting for the color of the surface reflecting light and
-	//	// 1 accounting for the color of the surface the light is reflecting onto
-	//	irradianceR = irradianceR + (fatt*diffuseColor[0]*max(0, ndDOTxmDL)* max(0, nDOTDLmx))/(xmDLMAG*xmDLMAG*xmDLMAG*xmDLMAG);
-	//	irradianceG = irradianceG + (fatt*diffuseColor[1]*max(0, ndDOTxmDL)* max(0, nDOTDLmx))/(xmDLMAG*xmDLMAG*xmDLMAG*xmDLMAG);
-	//	irradianceB = irradianceB + (fatt*diffuseColor[2]*max(0, ndDOTxmDL)* max(0, nDOTDLmx))/(xmDLMAG*xmDLMAG*xmDLMAG*xmDLMAG);
-	//	
-	//}	
-	
-	
-	
-	//int j = 0;
-	//for(int i = 0; i < gResolution*gResolution; i=i+sampleRate)
-	//{
-	//	float xmxp[3] = {point[0] - cArray[3*i+0], point[1] - cArray[3*i+1], point[2] - cArray[3*i+2]};
-	//	float xmxpMAG = sqrt(xmxp[0]*xmxp[0]+xmxp[1]*xmxp[1]+xmxp[2]*xmxp[2]);
-
-	//	if(xmxpMAG < 0.5)
-	//	{
-	//		xmxpMAG = xmxpMAG + 0.5;
-	//	}
-	//	else if(xmxpMAG < 1.5)
-	//	{
-	//		xmxpMAG = xmxpMAG + 0.5/xmxpMAG;
-	//	}
-	//	float npDOTxmxp = nArray[3*i+0]*xmxp[0]/xmxpMAG + nArray[3*i+1]*xmxp[1]/xmxpMAG+ nArray[3*i+2]*xmxp[2]/xmxpMAG;
-
-
-	//	float xpmx[3] = {cArray[3*i+0] - point[0], cArray[3*i+1] - point[1], cArray[3*i+2] - point[2]};
-	//	float nDOTxpmx = normalizednormal[0]*xpmx[0]/xmxpMAG + normalizednormal[1]*xpmx[1]/xmxpMAG + normalizednormal[2]*xpmx[2]/xmxpMAG;
-
-
-	//	// Reduced the irradiance by a factor of 2. Broke it into 2 parts, 1 accounting for the color of the surface reflecting light and
-	//	// 1 accounting for the color of the surface the light is reflecting onto
-	//	irradianceR = irradianceR + (sampleRate/4)*(fArray[3*i+0]*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG) +
-	//		(sampleRate/4)*((diffuseColor[0])*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG);
-	//	irradianceG = irradianceG + (sampleRate/4)*(fArray[3*i+1]*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG) +
-	//		(sampleRate/4)*((diffuseColor[1])*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG);
-	//	irradianceB = irradianceB + (sampleRate/4)*(fArray[3*i+2]*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG) +
-	//		(sampleRate/4)*((diffuseColor[2])*max(0, npDOTxmxp)* max(0, nDOTxpmx))/(xmxpMAG*xmxpMAG*xmxpMAG*xmxpMAG);
-	//	
-	//}
-	/*****************************************************************************************************/
-
-	int totalLightR = (255*sumLightsR) + irradianceR;
-	int totalLightG = (255*sumLightsG) + irradianceG;
-	int totalLightB = (255*sumLightsB) + irradianceB;
+	int totalLightR = (255*sumLightsR) + (irradiance*diffuseColor[0]*gTheScene->lights()[3+9*j]);
+	int totalLightG = (255*sumLightsG) + (irradiance*diffuseColor[1]*gTheScene->lights()[4+9*j]);
+	int totalLightB = (255*sumLightsB) + (irradiance*diffuseColor[2]*gTheScene->lights()[5+9*j]);
 
 	if (totalLightR >255) totalLightR = 255;
 	if (totalLightG >255) totalLightG = 255;
 	if (totalLightB >255) totalLightB = 255;
 
 	*cp = Pixel( totalLightR,totalLightG,totalLightB);
-	*ip = Pixel( irradianceR,irradianceG,irradianceB);
+	*ip = Pixel( (irradiance*diffuseColor[0]*gTheScene->lights()[3+9*j]),
+		(irradiance*diffuseColor[1]*gTheScene->lights()[4+9*j]),
+		(irradiance*diffuseColor[2]*gTheScene->lights()[5+9*j]));
 }
 
 void color_buffer() {
@@ -1321,7 +1231,7 @@ void depth_buffer() {
 }
 
 int main( int argc, char **argv ){
-	int time = clock();
+	int timing = clock();
 	string pathStr;
 	gProgramName = argv[0];
 	gInputModel = NULL;
@@ -1422,8 +1332,10 @@ int main( int argc, char **argv ){
 		usage( "You specify an input scene file, an output file and a depth file." );
 	}
 
+
+
 	int newtime = clock();
-	if(gVerbose) printf ("It took %d clicks.\n",newtime-time);
+	if(gVerbose) printf ("It took %d clicks.\n",newtime-timing);
 	if(gVerbose) cout << "REACHED END" << endl;
 	cin.get();
 	return( 0 );
