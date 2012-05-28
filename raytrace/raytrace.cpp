@@ -24,13 +24,14 @@ FaceList *gInputModel;
 
 Image *color_image;
 Image *depth_image;
-Image *normal_image;
-Image *coord_image;
-Image *flux_image;
+//Image *normal_image;
+//Image *coord_image;
+//Image *flux_image;
 Image *indirect_image;
+Image *direct_image;
 
 Image *cam_normal_image;
-Image *cam_coord_image;
+//Image *cam_coord_image;
 
 Scene *gTheScene;
 string gProgramName;
@@ -38,19 +39,17 @@ int gResolution;
 
 float* tArray;
 float* dArray;
-float* nArray;
-float* cArray;
-float* fArray;
+//float* nArray;
+//float* cArray;
+//float* fArray;
 
 float* cnArray;
-float* ccArray;
+//float* ccArray;
 int gNumDLights = 6485;
 
 float diff = 0;
 float midpt[3] = {0,0,0};
 bool gVerbose = false;
-
-int sampleRate = 100;
 
 float W = 0;
 float H = 0;
@@ -127,7 +126,13 @@ float max(float value1, float value2)
 	else
 		return value2;
 }
-
+float min(float value1, float value2)
+{
+	if(value1 > value2)
+		return value2;
+	else
+		return value1;
+}
 float intersectSphere(int i, float* eye, float* d){
 	////A = dNorm DOT dNorm
 	float A =normalize3D(d)[0]*normalize3D(d)[0]+
@@ -241,7 +246,7 @@ float intersectTriangle(int i, float* eye, float* d, bool mesh){
 	return 0;
 }
 
-void lightObject( int currentPixel, float* point, float* normal, Pixel *cp, Pixel *ip, float* d, 
+void lightObject( int currentPixel, float* point, float* normal, Pixel *cp, Pixel *ip, Pixel *dirp, float* d, 
 				float* diffuseColor, float* specularColor, float exponent, int object, int num){
 							
 	float sumLightsR = 0;
@@ -410,6 +415,8 @@ void lightObject( int currentPixel, float* point, float* normal, Pixel *cp, Pixe
 	if (totalLightG >255) totalLightG = 255;
 	if (totalLightB >255) totalLightB = 255;
 
+	*dirp = Pixel((min(255,255*sumLightsR)),(min(255,255*sumLightsG)),(min(255,255*sumLightsB)));
+
 	*cp = Pixel( totalLightR,totalLightG,totalLightB);
 	*ip = Pixel( (irradiance*diffuseColor[0]*gTheScene->lights()[3+9*j]),
 		(irradiance*diffuseColor[1]*gTheScene->lights()[4+9*j]),
@@ -471,6 +478,9 @@ void color_buffer() {
 	indirect_image = new Image(gResolution,gResolution,gTheScene->backgroundColor());
 	Pixel *ip = indirect_image->pixels;
 
+	//DIRECT LIGHTING ONLY
+	direct_image = new Image(gResolution,gResolution,gTheScene->backgroundColor());
+	Pixel *dirp = direct_image->pixels;
 
 	W = 5/viewPercentage;
 	H = 5/viewPercentage;
@@ -579,7 +589,7 @@ void color_buffer() {
 															gTheScene->materials()[5+7*int(gTheScene->allSpheres()[0+5*i])]};
 				float exponent = gTheScene->materials()[6+7*int(gTheScene->allSpheres()[0+5*i])];
 
-				lightObject(currentPixel, point, normal, cp, ip, d, diffuseColor, specularColor, exponent,0,i);
+				lightObject(currentPixel, point, normal, cp, ip, dirp, d, diffuseColor, specularColor, exponent,0,i);
 				
 			}
 		}
@@ -615,7 +625,7 @@ void color_buffer() {
 															gTheScene->materials()[5+7*int(gTheScene->allPlanes()[0+5*i])]};
 				float exponent = gTheScene->materials()[6+7*int(gTheScene->allPlanes()[0+5*i])];
 
-				lightObject(currentPixel, point, normal, cp, ip, d, diffuseColor, specularColor, exponent,1,i);
+				lightObject(currentPixel, point, normal, cp, ip, dirp, d, diffuseColor, specularColor, exponent,1,i);
 				tArray[currentPixel] = t;
 			}
 		}
@@ -658,7 +668,7 @@ void color_buffer() {
 															 gTheScene->materials()[5+7*int(gTheScene->allTriangles()[0+10*i])]};
 					float exponent = gTheScene->materials()[6+7*int(gTheScene->allTriangles()[0+10*i])];
 
-					lightObject(currentPixel, point, normal, cp, ip, d, diffuseColor, specularColor, exponent,2,i);
+					lightObject(currentPixel, point, normal, cp, ip, dirp, d, diffuseColor, specularColor, exponent,2,i);
 					tArray[currentPixel] = t;
 					
 				}
@@ -722,7 +732,7 @@ void color_buffer() {
 																	 gTheScene->materials()[5+7*gTheScene->materialIndex()[0]]};
 							float exponent = gTheScene->materials()[6+7*gTheScene->materialIndex()[0]];
 
-							lightObject(currentPixel, point, normal, cp, ip, d, diffuseColor, specularColor, exponent,3,0);
+							lightObject(currentPixel, point, normal, cp, ip, dirp, d, diffuseColor, specularColor, exponent,3,0);
 							tArray[currentPixel] = t;
 						}
 					}
@@ -731,6 +741,7 @@ void color_buffer() {
 		}
 		*cp++;
 		*ip++;
+		*dirp++;
 		currentPixel++;
 	}
 	
@@ -772,26 +783,26 @@ void depth_buffer() {
 	depth_image = new Image(gResolution,gResolution,black);
 	Pixel *dp = depth_image->pixels;
 
-	//SET UP NORMAL IMAGE
-	normal_image = new Image(gResolution,gResolution,black);
-	Pixel *np = normal_image->pixels;
+	////SET UP NORMAL IMAGE
+	//normal_image = new Image(gResolution,gResolution,black);
+	//Pixel *np = normal_image->pixels;
 
-	//SET UP WORLD SPACE COORDINATE IMAGE
-	coord_image = new Image(gResolution,gResolution,black);
-	Pixel *wp = coord_image->pixels;
+	////SET UP WORLD SPACE COORDINATE IMAGE
+	//coord_image = new Image(gResolution,gResolution,black);
+	//Pixel *wp = coord_image->pixels;
 
-	//SET UP FLUX BUFFER IMAGE
-	flux_image = new Image(gResolution,gResolution,black);
-	Pixel *fp = flux_image->pixels;
+	////SET UP FLUX BUFFER IMAGE
+	//flux_image = new Image(gResolution,gResolution,black);
+	//Pixel *fp = flux_image->pixels;
 
 
 	//SET UP CAMERA NORMAL IMAGE
 	cam_normal_image = new Image(3*5,gNumDLights/5,black);
 	Pixel *cnp = cam_normal_image->pixels;
 
-	//SET UP CAMERA WORLD SPACE COORDINATE IMAGE
-	cam_coord_image = new Image(gResolution,gResolution,black);
-	Pixel *cwp = cam_coord_image->pixels;
+	////SET UP CAMERA WORLD SPACE COORDINATE IMAGE
+	//cam_coord_image = new Image(gResolution,gResolution,black);
+	//Pixel *cwp = cam_coord_image->pixels;
 
 	float W = 5;
 	float H = 5;
@@ -803,33 +814,33 @@ void depth_buffer() {
 		dArray[i] = 20;
 	}
 
-	nArray = new float[3*gResolution*gResolution];
-	for(int i = 0; i < gResolution*gResolution; i++) {
-		nArray[i*3+0] = 0;
-		nArray[i*3+1] = 0;
-		nArray[i*3+2] = 0;
-	}
+	//nArray = new float[3*gResolution*gResolution];
+	//for(int i = 0; i < gResolution*gResolution; i++) {
+	//	nArray[i*3+0] = 0;
+	//	nArray[i*3+1] = 0;
+	//	nArray[i*3+2] = 0;
+	//}
 
-	cArray = new float[3*gResolution*gResolution];
-	for(int i = 0; i < gResolution*gResolution; i++) {
-		cArray[i*3+0] = 0;
-		cArray[i*3+1] = 0;
-		cArray[i*3+2] = 0;
-	}
+	//cArray = new float[3*gResolution*gResolution];
+	//for(int i = 0; i < gResolution*gResolution; i++) {
+	//	cArray[i*3+0] = 0;
+	//	cArray[i*3+1] = 0;
+	//	cArray[i*3+2] = 0;
+	//}
 
-	fArray = new float[3*gResolution*gResolution];
-	for(int i = 0; i < gResolution*gResolution; i++) {
-		fArray[i*3+0] = 0;
-		fArray[i*3+1] = 0;
-		fArray[i*3+2] = 0;
-	}
+	//fArray = new float[3*gResolution*gResolution];
+	//for(int i = 0; i < gResolution*gResolution; i++) {
+	//	fArray[i*3+0] = 0;
+	//	fArray[i*3+1] = 0;
+	//	fArray[i*3+2] = 0;
+	//}
 
-	ccArray = new float[3*gResolution*gResolution];
-	for(int i = 0; i < gResolution*gResolution; i++) {
-		ccArray[i*3+0] = 0;
-		ccArray[i*3+1] = 0;
-		ccArray[i*3+2] = 0;
-	}
+	//ccArray = new float[3*gResolution*gResolution];
+	//for(int i = 0; i < gResolution*gResolution; i++) {
+	//	ccArray[i*3+0] = 0;
+	//	ccArray[i*3+1] = 0;
+	//	ccArray[i*3+2] = 0;
+	//}
 
 	// ONLY 1 LIGHT SUPPORT currently
 	int j = 0;
@@ -871,19 +882,19 @@ void depth_buffer() {
 				float normal[3] = {point[0] - center[0], point[1] - center[1], point[2] - center[2]};
 
 				dArray[currentPixel] = tMinus;
-				nArray[currentPixel*3+0] = normalize3D(normal)[0];
-				nArray[currentPixel*3+1] = normalize3D(normal)[1];
-				nArray[currentPixel*3+2] = normalize3D(normal)[2];
-				cArray[currentPixel*3+0] = point[0];
-				cArray[currentPixel*3+1] = point[1];
-				cArray[currentPixel*3+2] = point[2];
+				//nArray[currentPixel*3+0] = normalize3D(normal)[0];
+				//nArray[currentPixel*3+1] = normalize3D(normal)[1];
+				//nArray[currentPixel*3+2] = normalize3D(normal)[2];
+				//cArray[currentPixel*3+0] = point[0];
+				//cArray[currentPixel*3+1] = point[1];
+				//cArray[currentPixel*3+2] = point[2];
 
-				float refCoe = (-normalize3D(normal)[0])*(normalize3D(d)[0])-(normalize3D(normal)[1])*(normalize3D(d)[1])-
-					(normalize3D(normal)[2])*(normalize3D(d)[2]);
+				/*float refCoe = (-normalize3D(normal)[0])*(normalize3D(d)[0])-(normalize3D(normal)[1])*(normalize3D(d)[1])-
+					(normalize3D(normal)[2])*(normalize3D(d)[2]);*/
 
-				fArray[currentPixel*3+0] = max(0,gTheScene->materials()[0+7*int(gTheScene->allSpheres()[0+5*i])]*refCoe);
-				fArray[currentPixel*3+1] = max(0,gTheScene->materials()[1+7*int(gTheScene->allSpheres()[0+5*i])]*refCoe);
-				fArray[currentPixel*3+2] = max(0,gTheScene->materials()[2+7*int(gTheScene->allSpheres()[0+5*i])]*refCoe);
+				//fArray[currentPixel*3+0] = max(0,gTheScene->materials()[0+7*int(gTheScene->allSpheres()[0+5*i])]*refCoe);
+				//fArray[currentPixel*3+1] = max(0,gTheScene->materials()[1+7*int(gTheScene->allSpheres()[0+5*i])]*refCoe);
+				//fArray[currentPixel*3+2] = max(0,gTheScene->materials()[2+7*int(gTheScene->allSpheres()[0+5*i])]*refCoe);
 			}
 		}
 
@@ -903,19 +914,19 @@ void depth_buffer() {
 				point[2] = eye[2] + t*(normalize3D(d)[2]);
 
 				dArray[currentPixel] = t;
-				nArray[currentPixel*3+0] = normalize3D(normal)[0];
-				nArray[currentPixel*3+1] = normalize3D(normal)[1];
-				nArray[currentPixel*3+2] = normalize3D(normal)[2];
-				cArray[currentPixel*3+0] = point[0];
-				cArray[currentPixel*3+1] = point[1];
-				cArray[currentPixel*3+2] = point[2];
+				//nArray[currentPixel*3+0] = normalize3D(normal)[0];
+				//nArray[currentPixel*3+1] = normalize3D(normal)[1];
+				//nArray[currentPixel*3+2] = normalize3D(normal)[2];
+				//cArray[currentPixel*3+0] = point[0];
+				//cArray[currentPixel*3+1] = point[1];
+				//cArray[currentPixel*3+2] = point[2];
 
-				float refCoe = (-normalize3D(normal)[0])*(normalize3D(d)[0])-(normalize3D(normal)[1])*(normalize3D(d)[1])-
-					(normalize3D(normal)[2])*(normalize3D(d)[2]);
+				//float refCoe = (-normalize3D(normal)[0])*(normalize3D(d)[0])-(normalize3D(normal)[1])*(normalize3D(d)[1])-
+				//	(normalize3D(normal)[2])*(normalize3D(d)[2]);
 				
-				fArray[currentPixel*3+0] = max(0,gTheScene->materials()[0+7*int(gTheScene->allPlanes()[0+5*i])]*refCoe);
-				fArray[currentPixel*3+1] = max(0,gTheScene->materials()[1+7*int(gTheScene->allPlanes()[0+5*i])]*refCoe);
-				fArray[currentPixel*3+2] = max(0,gTheScene->materials()[2+7*int(gTheScene->allPlanes()[0+5*i])]*refCoe);	 
+				//fArray[currentPixel*3+0] = max(0,gTheScene->materials()[0+7*int(gTheScene->allPlanes()[0+5*i])]*refCoe);
+				//fArray[currentPixel*3+1] = max(0,gTheScene->materials()[1+7*int(gTheScene->allPlanes()[0+5*i])]*refCoe);
+				//fArray[currentPixel*3+2] = max(0,gTheScene->materials()[2+7*int(gTheScene->allPlanes()[0+5*i])]*refCoe);	 
 			}
 		}
 
@@ -942,19 +953,19 @@ void depth_buffer() {
 					point[2] = eye[2] + t*(normalize3D(d)[2]);
 
 					dArray[currentPixel] = t;
-					nArray[currentPixel*3+0] = normalize3D(normal)[0];
-					nArray[currentPixel*3+1] = normalize3D(normal)[1];
-					nArray[currentPixel*3+2] = normalize3D(normal)[2];
-					cArray[currentPixel*3+0] = point[0];
-					cArray[currentPixel*3+1] = point[1];
-					cArray[currentPixel*3+2] = point[2];
+					//nArray[currentPixel*3+0] = normalize3D(normal)[0];
+					//nArray[currentPixel*3+1] = normalize3D(normal)[1];
+					//nArray[currentPixel*3+2] = normalize3D(normal)[2];
+					//cArray[currentPixel*3+0] = point[0];
+					//cArray[currentPixel*3+1] = point[1];
+					//cArray[currentPixel*3+2] = point[2];
 
-					float refCoe = (-normalize3D(normal)[0])*(normalize3D(d)[0])-(normalize3D(normal)[1])*(normalize3D(d)[1])-
-								(normalize3D(normal)[2])*(normalize3D(d)[2]);
+					//float refCoe = (-normalize3D(normal)[0])*(normalize3D(d)[0])-(normalize3D(normal)[1])*(normalize3D(d)[1])-
+					//			(normalize3D(normal)[2])*(normalize3D(d)[2]);
 
-					fArray[currentPixel*3+0] = max(0,gTheScene->materials()[0+7*int(gTheScene->allTriangles()[0+10*i])]*refCoe);
-					fArray[currentPixel*3+1] = max(0,gTheScene->materials()[1+7*int(gTheScene->allTriangles()[0+10*i])]*refCoe);
-					fArray[currentPixel*3+2] = max(0,gTheScene->materials()[2+7*int(gTheScene->allTriangles()[0+10*i])]*refCoe);	
+					//fArray[currentPixel*3+0] = max(0,gTheScene->materials()[0+7*int(gTheScene->allTriangles()[0+10*i])]*refCoe);
+					//fArray[currentPixel*3+1] = max(0,gTheScene->materials()[1+7*int(gTheScene->allTriangles()[0+10*i])]*refCoe);
+					//fArray[currentPixel*3+2] = max(0,gTheScene->materials()[2+7*int(gTheScene->allTriangles()[0+10*i])]*refCoe);	
 					
 				}
 			}
@@ -1003,19 +1014,19 @@ void depth_buffer() {
 
 
 							dArray[currentPixel] = t;
-							nArray[currentPixel*3+0] = normalize3D(normal)[0];
-							nArray[currentPixel*3+1] = normalize3D(normal)[1];
-							nArray[currentPixel*3+2] = normalize3D(normal)[2];
-							cArray[currentPixel*3+0] = point[0];
-							cArray[currentPixel*3+1] = point[1];
-							cArray[currentPixel*3+2] = point[2];
+							//nArray[currentPixel*3+0] = normalize3D(normal)[0];
+							//nArray[currentPixel*3+1] = normalize3D(normal)[1];
+							//nArray[currentPixel*3+2] = normalize3D(normal)[2];
+							//cArray[currentPixel*3+0] = point[0];
+							//cArray[currentPixel*3+1] = point[1];
+							//cArray[currentPixel*3+2] = point[2];
 
-							float refCoe = (-normalize3D(normal)[0])*(normalize3D(d)[0])-(normalize3D(normal)[1])*(normalize3D(d)[1])-
-									(normalize3D(normal)[2])*(normalize3D(d)[2]);
+							//float refCoe = (-normalize3D(normal)[0])*(normalize3D(d)[0])-(normalize3D(normal)[1])*(normalize3D(d)[1])-
+							//		(normalize3D(normal)[2])*(normalize3D(d)[2]);
 
-							fArray[currentPixel*3+0] = max(0,gTheScene->materials()[0+7*gTheScene->materialIndex()[0]]*refCoe);
-							fArray[currentPixel*3+1] = max(0,gTheScene->materials()[1+7*gTheScene->materialIndex()[0]]*refCoe);
-							fArray[currentPixel*3+2] = max(0,gTheScene->materials()[2+7*gTheScene->materialIndex()[0]]*refCoe);
+							//fArray[currentPixel*3+0] = max(0,gTheScene->materials()[0+7*gTheScene->materialIndex()[0]]*refCoe);
+							//fArray[currentPixel*3+1] = max(0,gTheScene->materials()[1+7*gTheScene->materialIndex()[0]]*refCoe);
+							//fArray[currentPixel*3+2] = max(0,gTheScene->materials()[2+7*gTheScene->materialIndex()[0]]*refCoe);
 						}
 					}
 				}
@@ -1061,40 +1072,40 @@ void depth_buffer() {
 		currentPixel++;
 	}
 	
-	//NORMAL MAP CREATION
-	currentPixel = 0;
-	while(currentPixel<resX*resY){
-		float normal[3] = {nArray[3*currentPixel+0],nArray[3*currentPixel+1],nArray[3*currentPixel+2]};
-		*np = Pixel(abs((normal[0])*255),
-					abs((normal[1])*255),
-					abs((normal[2])*255));	
-		
-		*np++;
-		currentPixel++;
-	}
+	////NORMAL MAP CREATION
+	//currentPixel = 0;
+	//while(currentPixel<resX*resY){
+	//	float normal[3] = {nArray[3*currentPixel+0],nArray[3*currentPixel+1],nArray[3*currentPixel+2]};
+	//	*np = Pixel(abs((normal[0])*255),
+	//				abs((normal[1])*255),
+	//				abs((normal[2])*255));	
+	//	
+	//	*np++;
+	//	currentPixel++;
+	//}
 
-	//WORLD SPACE COORDINATE MAP CREATION		
-	currentPixel = 0;
-	while(currentPixel<resX*resY){
-		float point[3] = {cArray[3*currentPixel+0],cArray[3*currentPixel+1],cArray[3*currentPixel+2]};
-		*wp = Pixel(abs((normalize3D(point)[0])*255),
-					abs((normalize3D(point)[1])*255),
-					abs((normalize3D(point)[2])*255));	
-		
-		*wp++;
-		currentPixel++;
-	}
+	////WORLD SPACE COORDINATE MAP CREATION		
+	//currentPixel = 0;
+	//while(currentPixel<resX*resY){
+	//	float point[3] = {cArray[3*currentPixel+0],cArray[3*currentPixel+1],cArray[3*currentPixel+2]};
+	//	*wp = Pixel(abs((normalize3D(point)[0])*255),
+	//				abs((normalize3D(point)[1])*255),
+	//				abs((normalize3D(point)[2])*255));	
+	//	
+	//	*wp++;
+	//	currentPixel++;
+	//}
 	
-	//FLUX BUFFER CREATION
-	currentPixel = 0;
-	while(currentPixel<resX*resY){
-		*fp = Pixel(fArray[currentPixel*3+0]*255,
-					fArray[currentPixel*3+1]*255,
-					fArray[currentPixel*3+2]*255);	
-		
-		*fp++;
-		currentPixel++;
-	}
+	////FLUX BUFFER CREATION
+	//currentPixel = 0;
+	//while(currentPixel<resX*resY){
+	//	*fp = Pixel(fArray[currentPixel*3+0]*255,
+	//				fArray[currentPixel*3+1]*255,
+	//				fArray[currentPixel*3+2]*255);	
+	//	
+	//	*fp++;
+	//	currentPixel++;
+	//}
 	/**************************************************************************************
 	* Creating Camera Buffer with center(3: x,y,z), normal(3: x,y,z), attenuation(1)
 	* 6485 Lights, 1297rays *5per ray
@@ -1216,17 +1227,17 @@ void depth_buffer() {
 		currentPixel++;
 	}
 
-	//CAMERA WORLD SPACE COORDINATE MAP CREATION		
-	currentPixel = 0;
-	while(currentPixel<resX*resY){
-		float point[3] = {ccArray[3*currentPixel+0],ccArray[3*currentPixel+1],ccArray[3*currentPixel+2]};
-		*cwp = Pixel(abs((normalize3D(point)[0])*255),
-					abs((normalize3D(point)[1])*255),
-					abs((normalize3D(point)[2])*255));	
-		
-		*cwp++;
-		currentPixel++;
-	}
+	////CAMERA WORLD SPACE COORDINATE MAP CREATION		
+	//currentPixel = 0;
+	//while(currentPixel<resX*resY){
+	//	float point[3] = {ccArray[3*currentPixel+0],ccArray[3*currentPixel+1],ccArray[3*currentPixel+2]};
+	//	*cwp = Pixel(abs((normalize3D(point)[0])*255),
+	//				abs((normalize3D(point)[1])*255),
+	//				abs((normalize3D(point)[2])*255));	
+	//	
+	//	*cwp++;
+	//	currentPixel++;
+	//}
 
 }
 
@@ -1258,15 +1269,16 @@ int main( int argc, char **argv ){
 		string temp4 = gTheScene->inputSceneFile();
 		string temp5 = gTheScene->inputSceneFile();
 		string temp6 = gTheScene->inputSceneFile();
+		string temp7 = gTheScene->inputSceneFile();
 		const char * color_out = gTheScene->outputFile().c_str();
 		const char * depth_out = gTheScene->depthFile().c_str();
-		const char * normal_out =temp1.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_normal_map.ppm").c_str();
-		const char * coord_out = temp2.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_world_coord_map.ppm").c_str();
-		const char * flux_out = temp3.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_flux_buffer.ppm").c_str();
+		//const char * normal_out =temp1.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_normal_map.ppm").c_str();
+		//const char * coord_out = temp2.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_world_coord_map.ppm").c_str();
+		//const char * flux_out = temp3.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_flux_buffer.ppm").c_str();
 		const char * indirect_out = temp4.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_indirect_only.ppm").c_str();
 		const char * cam_normal_out = temp5.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_cam_normal_map.ppm").c_str();
-		const char * cam_coord_out = temp6.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_cam_coord_map.ppm").c_str();
-		
+		//const char * cam_coord_out = temp6.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_cam_coord_map.ppm").c_str();
+		const char * direct_out = temp7.replace(gTheScene->inputSceneFile().length()-4,4,"").append("_direct_only.ppm").c_str();
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
 		//CALCULATE DEPTH IMAGE, FLUX IMAGE, WORLD SPACE COORDS, NORMAL IMAGE
@@ -1284,36 +1296,36 @@ int main( int argc, char **argv ){
 		else {
 			if(gVerbose) cout << "Depth Image Creation Failed!" << endl;
 		}
-		if(normal_image->write(normal_out)){
-			if(gVerbose) cout << "Normal Image Created Succuessfully!" << endl;
-		}
-		else {
-			if(gVerbose) cout << "Normal Image Creation Failed!" << endl;
-		}
-		if(coord_image->write(coord_out)){
-			if(gVerbose) cout << "World Space Coordinate Image Created Succuessfully!" << endl;
-		}
-		else {
-			if(gVerbose) cout << "World Space Coordinate Image Creation Failed!" << endl;
-		}
-		if(flux_image->write(flux_out)){
-			if(gVerbose) cout << "Flux Buffer Created Succuessfully!" << endl;
-		}
-		else {
-			if(gVerbose) cout << "Flux Buffer Creation Failed!" << endl;
-		}
+		//if(normal_image->write(normal_out)){
+		//	if(gVerbose) cout << "Normal Image Created Succuessfully!" << endl;
+		//}
+		//else {
+		//	if(gVerbose) cout << "Normal Image Creation Failed!" << endl;
+		//}
+		//if(coord_image->write(coord_out)){
+		//	if(gVerbose) cout << "World Space Coordinate Image Created Succuessfully!" << endl;
+		//}
+		//else {
+		//	if(gVerbose) cout << "World Space Coordinate Image Creation Failed!" << endl;
+		//}
+		//if(flux_image->write(flux_out)){
+		//	if(gVerbose) cout << "Flux Buffer Created Succuessfully!" << endl;
+		//}
+		//else {
+		//	if(gVerbose) cout << "Flux Buffer Creation Failed!" << endl;
+		//}
 		if(cam_normal_image->write(cam_normal_out)){
 			if(gVerbose) cout << "Camera Normal Image Created Succuessfully!" << endl;
 		}
 		else {
 			if(gVerbose) cout << "Camera Normal Image Creation Failed!" << endl;
 		}
-		if(cam_coord_image->write(cam_coord_out)){
-			if(gVerbose) cout << "Camera World Space Coordinate Image Created Succuessfully!" << endl;
-		}
-		else {
-			if(gVerbose) cout << "Camera World Space Coordinate Image Creation Failed!" << endl;
-		}
+		//if(cam_coord_image->write(cam_coord_out)){
+		//	if(gVerbose) cout << "Camera World Space Coordinate Image Created Succuessfully!" << endl;
+		//}
+		//else {
+		//	if(gVerbose) cout << "Camera World Space Coordinate Image Creation Failed!" << endl;
+		//}
 
 		if(color_image->write(color_out)){
 			if(gVerbose) cout << "Color Image Created Succuessfully!" << endl;
@@ -1326,6 +1338,12 @@ int main( int argc, char **argv ){
 		}
 		else {
 			if(gVerbose) cout << "Indirect Color Image Creation Failed!" << endl;
+		}
+		if(direct_image->write(direct_out)){
+			if(gVerbose) cout << "Direct Color Image Created Succuessfully!" << endl;
+		}
+		else {
+			if(gVerbose) cout << "Direct Color Image Creation Failed!" << endl;
 		}
 	}
 	else{

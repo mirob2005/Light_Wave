@@ -16,13 +16,24 @@ All files must be in the same directory to be found.
 	
 * The program computes and outputs the: (tentative)
 	(from view of camera):
-	* color image (with shadows by shadow maps) with indirect lighting
+	* color image (with shadows by shadow maps) with direct and indirect lighting
+	* color image - indirect only
+	* color image - direct only
 
 	(from view of the light source):
 	* depth map
-	* normal map (normals will be of the ~6125 directional lights)
-	* world coordinate map (coords will be of directional lights centers)
-	* flux buffer (unknown use currently)
+	(commented out)* normal map (normals will be of the ~6125 directional lights)
+	(commented out)* world coordinate map (coords will be of directional lights centers)
+	(commented out)* flux buffer (unknown use currently)
+
+
+Current Runtimes:
+
+250x250 -> 47seconds
+500x500 -> 187seconds
+
+
+
 
 Sample commandline(on Windows) :
 			raytrace.exe -v -i scene5_01.txt -r 250
