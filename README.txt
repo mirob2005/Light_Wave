@@ -26,9 +26,9 @@ OR by increasing the angles betweens lights from 5 to >5.
 This has not been tested to find an optimal number of lights with performance gains considered.
 
 TODO: 
-1) Decrease power of indirect lighting, images are currently looking overexposed.
-2) Test performance gains with quality tradeoff by decreasing the number of lights either by increasing the angles or decreasing the number of lights per ray.
-
+1) (DONE-5/30)Decrease power of indirect lighting, images are currently looking overexposed. (decreasing light total is effective)
+2) (DONE-5/30)Test performance gains with quality tradeoff by decreasing the number of lights either by increasing the angles or decreasing the number of lights per ray. (Variables Added - images showing varying light counts added with runtimes below)
+3) Ceiling is dark -> change exposure angle to be greater than 180 degrees (more wavelike)
 
 * The program computes and outputs the: (tentative)
 	(from view of camera):
@@ -45,9 +45,21 @@ TODO:
 
 Current Runtimes:
 
+* 5 lightsPerRay, 5 degrees between light ray (6485 lights)
 250x250 -> 47seconds
 500x500 -> 187seconds
 
+* 5 lightsPerRay, 6 degrees between light ray (4505 lights)
+250x250 -> 33seconds
+
+* 4 lightsPerRay, 5 degrees between light ray (5188 lights)
+250x250 - > 37.5seconds
+
+* 4 lightsPerRay, 6 degrees between light ray (3604 lights)
+250x250 - > 27seconds
+
+* 4 lightsPerRay, 9 degrees between light ray (1604 lights)
+250x250 - > 12seconds
 
 
 
