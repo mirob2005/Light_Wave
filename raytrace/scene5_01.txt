@@ -9,10 +9,10 @@ PerspectiveCamera {
 Lights {
     numLights 1
     DirectionalLight {
-    position 0 3.9 0
+    position 0 4 0
     direction 0 -1 0
     color 1 1 1
-    angle 180
+    angle 240
     attenuation 0.1 0.1 0.1
     }
 

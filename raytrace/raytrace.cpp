@@ -47,7 +47,7 @@ float* cnArray;
 //float* ccArray;
 const int lightsPerRay = 4;
 // Divisors of 360 AND 90
-const int lightsAngle = 6;
+const int lightsAngle = 9;
 int gNumDLights = lightsPerRay*((90/lightsAngle)*(360/lightsAngle)+1);
  
 
@@ -259,6 +259,7 @@ void lightObject( int currentPixel, float* point, float* normal, Pixel *cp, Pixe
 	float irradiance = 0;
 	float NdotL = 0;
 	bool blocked = false;
+	bool acceptedAngle = false;
 
 	float normalizednormal[3] = {normalize3D(normal)[0],normalize3D(normal)[1],normalize3D(normal)[2]};
 	int j =0;
@@ -411,12 +412,21 @@ void lightObject( int currentPixel, float* point, float* normal, Pixel *cp, Pixe
 						(direction[2]*(-DLmx[2]/DLmxMAG));
 
 
+		//float lightAngle = (180*acos(LdotXmDL))/3.1416;
+
+		if(LdotXmDL  > -0.5) acceptedAngle = true;
+		else acceptedAngle = false;
+
+
 		//Check to see if the light direction is facing towards the object
-		if(NdotDLmx < 0.00001 || LdotXmDL < 0.00001){
+		if(NdotDLmx < 0.00001 || !acceptedAngle){
 			//DO Nothing
 		}
 		else {
 			float fatt = 1/(cnArray[7*i+6]*dist+1);
+
+			//Normalize LdotXmDL so no negatives
+			LdotXmDL = (LdotXmDL +0.5)/1.5;
 
 			//DIFFUSE COLOR = fatt*NdotL(for point then for DLight)
 			irradiance = irradiance +(fatt* NdotDLmx*LdotXmDL);
@@ -1137,9 +1147,9 @@ void depth_buffer() {
 	// First Ray (<0,-1,0> ray
 	for(int i = 0; i <lightsPerRay; i++) {
 		// Cam Center in World Space = center + normal direction* max distance * 1/lightsPerRay
-		cnArray[i*7+0] = gTheScene->lights()[0+9*j] + (gTheScene->dLight()[0+4*j])*8.0*((i+1.0)/lightsPerRay);
-		cnArray[i*7+1] = gTheScene->lights()[1+9*j] + (gTheScene->dLight()[1+4*j])*8.0*((i+1.0)/lightsPerRay);
-		cnArray[i*7+2] = gTheScene->lights()[2+9*j] + (gTheScene->dLight()[2+4*j])*8.0*((i+1.0)/lightsPerRay);
+		cnArray[i*7+0] = gTheScene->lights()[0+9*j] + (gTheScene->dLight()[0+4*j])*8.0*((i+0.001)/lightsPerRay);
+		cnArray[i*7+1] = gTheScene->lights()[1+9*j] + (gTheScene->dLight()[1+4*j])*8.0*((i+0.001)/lightsPerRay);
+		cnArray[i*7+2] = gTheScene->lights()[2+9*j] + (gTheScene->dLight()[2+4*j])*8.0*((i+0.001)/lightsPerRay);
 		// Cam Normal
 		cnArray[i*7+3] = gTheScene->dLight()[0+4*j];
 		cnArray[i*7+4] = gTheScene->dLight()[1+4*j];
@@ -1155,9 +1165,9 @@ void depth_buffer() {
 		for(int angleXY = 275; angleXY <=360; angleXY = angleXY +lightsAngle){
 			for(int counter = 0; counter <lightsPerRay; counter++) {
 				// Cam Center in World Space = center + normal direction* max distance *1/lightsPerRay
-				cnArray[i*7+0] = gTheScene->lights()[0+9*j] + cos(angleXY*3.1416/180)*cos(angleXZ*3.1416/180)*(8.0-(4.0/interpolate))*(((counter%lightsPerRay)+1.0)/lightsPerRay);
-				cnArray[i*7+1] = gTheScene->lights()[1+9*j] + sin(angleXY*3.1416/180)*(8.0-(4.0/interpolate))*(((counter%lightsPerRay)+1.0)/lightsPerRay);
-				cnArray[i*7+2] = gTheScene->lights()[2+9*j] - sin(angleXZ*3.1416/180)*(8.0-(4.0/interpolate))*(((counter%lightsPerRay)+1.0)/lightsPerRay);
+				cnArray[i*7+0] = gTheScene->lights()[0+9*j] + cos(angleXY*3.1416/180)*cos(angleXZ*3.1416/180)*(8.0-(4.0/interpolate))*(((counter%lightsPerRay)+0.001)/lightsPerRay);
+				cnArray[i*7+1] = gTheScene->lights()[1+9*j] + sin(angleXY*3.1416/180)*(8.0-(4.0/interpolate))*(((counter%lightsPerRay)+0.001)/lightsPerRay);
+				cnArray[i*7+2] = gTheScene->lights()[2+9*j] - sin(angleXZ*3.1416/180)*(8.0-(4.0/interpolate))*(((counter%lightsPerRay)+0.001)/lightsPerRay);
 				// Cam Normal
 				float normal[3] = {cos(angleXZ*3.1416/180)*cos(angleXY*3.1416/180),sin(angleXY*3.1416/180),-sin(angleXZ*3.1416/180)};
 				cnArray[i*7+3] = (normalize3D(normal)[0]);
